@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	c string
-	m string
+	c string // how many cpu would you want eat
+	m string // how many memory would you want eat
 )
 
 func main() {
