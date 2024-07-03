@@ -1,5 +1,5 @@
 # Introduce
-<b>I'm a CPU and memory eating monster.</b>
+<b>I'm a CPU and memory eating monster🦕</b>
 
 Developer will encounter the need to quickly occupy CPU and memory, I am also deeply troubled, so I developed a tool named `eat` to help you quickly occupy a specified amount of CPU and memory.
 
@@ -26,9 +26,9 @@ go build -o eat
 ```
 
 # 介绍
-<b>我是一个吃CPU和内存的怪物。</b>
+<b>我是一个吃CPU和内存的怪兽🦕</b>
 
-开发者在遇到需要快速占用CPU和内存的需求时，我也深受其扰，所以我开发了一个工具名为`eat`来帮助你快速占用指定数量的CPU和内存。
+开发者们经常会遇到需要快速占用 CPU 和内存的需求，我也是。所以我开发了一个名为 `eat` 的小工具来快速占用指定数量的 CPU 和内存。
 
 # 使用
 
