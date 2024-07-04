@@ -3,13 +3,23 @@
 
 Developer will encounter the need to quickly occupy CPU and memory, I am also deeply troubled, so I developed a tool named `eat` to help you quickly occupy a specified amount of CPU and memory.
 
+# Todo
+
+- [x] Support `eat -c 35%` and `eat -m 35%`
+- [] CPU Affinity
+- [] Memory read/write, prevent memory from being swapped out
+- [] Dynamic adjustment of CPU and memory usage
+- [] Eat GPU
+
 # Usage
 
 ```shell
 eat -c 4            # eating 4 CPU core
+eat -c 35%          # eating 35% CPU core (CPU count * 35%)
 eat -c 100%         # eating all CPU core
 eat -m 4g           # eating 4GB memory
 eat -m 20m          # eating 20MB memory
+eat -m 35%          # eating 35% memory (total memory * 35%)
 eat -m 100%         # eating all memory
 eat -c 2.5 -m 1.5g  # eating 2.5 CPU core and 1.5GB memory
 eat -c 3 -m 200m    # eating 3 CPU core and 200MB memory
@@ -30,13 +40,23 @@ go build -o eat
 
 开发者们经常会遇到需要快速占用 CPU 和内存的需求，我也是。所以我开发了一个名为 `eat` 的小工具来快速占用指定数量的 CPU 和内存。
 
+# 待办
+
+- [x] 支持`eat -c 35%`和`eat -m 35%`
+- [] CPU亲和性
+- [] 内存读写，防止内存被交换出去
+- [] 动态调整CPU和内存使用
+- [] 吃GPU
+
 # 使用
 
 ```shell
 eat -c 4            # 占用4个CPU核
+eat -c 35%          # 占用35%CPU核（CPU核数 * 35%）
 eat -c 100%         # 占用所有CPU核
 eat -m 4g           # 占用4GB内存
 eat -m 20m          # 占用20MB内存
+eat -m 35%          # 占用35%内存（总内存 * 35%）
 eat -m 100%         # 占用所有内存
 eat -c 2.5 -m 1.5g  # 占用2.5个CPU核和1.5GB内存
 eat -c 3 -m 200m    # 占用3个CPU核和200MB内存
