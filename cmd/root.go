@@ -56,7 +56,7 @@ func eatFunction(cmd *cobra.Command, args []string) {
 	cEat := parseEatCPUCount(c)
 	mEat := parseEatMemoryBytes(m)
 
-	fmt.Printf("Want to eat %2.1fC%s.\n", cEat, m)
+	fmt.Printf("Want to eat %2.1fCPU, %s Memory\n", cEat, m)
 	eatMemory(mEat)
 	eatCPU(cEat)
 	waitForever()
