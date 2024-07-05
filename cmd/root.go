@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,10 +29,20 @@ var RootCmd = &cobra.Command{
 	Run:   eatFunction,
 }
 
-func waitUtil(ctx context.Context, ctxCancel context.CancelFunc) {
+func getConsoleHelpTips(deadline time.Duration) string {
+	var helpTips = []string{"Press Ctrl + C to exit"}
+	if deadline > 0 {
+		eta := time.Now().Add(deadline)
+		helpTips = append(helpTips, fmt.Sprintf("or wait it util deadline %s", eta.Format(time.DateTime)))
+	}
+	helpTips = append(helpTips, "...")
+	return strings.Join(helpTips, " ")
+}
+
+func waitUtil(ctx context.Context, ctxCancel context.CancelFunc, deadline time.Duration) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	fmt.Println("Press Ctrl + C to exit...")
+	log.Println(getConsoleHelpTips(deadline))
 
 	for {
 		select {
@@ -84,5 +95,5 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	fmt.Printf("Want to eat %2.1fCPU, %s Memory\n", cEat, m)
 	eatMemory(mEat)
 	eatCPU(rootCtx, cEat)
-	waitUtil(rootCtx, cancel)
+	waitUtil(rootCtx, cancel, dlEat)
 }
