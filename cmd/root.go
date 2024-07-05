@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -39,11 +40,9 @@ func getConsoleHelpTips(deadline time.Duration) string {
 	return strings.Join(helpTips, " ")
 }
 
-func waitUtil(ctx context.Context, ctxCancel context.CancelFunc, deadline time.Duration) {
+func gracefulExit(ctx context.Context, ctxCancel context.CancelFunc) {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	log.Println(getConsoleHelpTips(deadline))
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -56,6 +55,12 @@ func waitUtil(ctx context.Context, ctxCancel context.CancelFunc, deadline time.D
 			time.Sleep(SleepDurationEachIteration)
 		}
 	}
+}
+
+func waitUtil(ctx context.Context, wg *sync.WaitGroup, ctxCancel context.CancelFunc, deadline time.Duration) {
+	log.Println(getConsoleHelpTips(deadline))
+	gracefulExit(ctx, ctxCancel)
+	wg.Wait()
 }
 
 func getRootContext(dlEat time.Duration) (context.Context, context.CancelFunc) {
@@ -92,8 +97,9 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	dlEat := parseEatDeadline(dl)
 
 	rootCtx, cancel := getRootContext(dlEat)
+	var wg sync.WaitGroup
 	fmt.Printf("Want to eat %2.3fCPU, %s Memory\n", cEat, m)
 	eatMemory(mEat)
-	eatCPU(rootCtx, cEat)
-	waitUtil(rootCtx, cancel, dlEat)
+	eatCPU(rootCtx, &wg, cEat)
+	waitUtil(rootCtx, &wg, cancel, dlEat)
 }

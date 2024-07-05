@@ -49,29 +49,27 @@ func partialBusyWork(ctx context.Context, ratio float64) {
 		busyStart := time.Now()
 		for time.Since(busyStart) < busyDuration {
 			cnt += 1 // Simulate work
+			if cnt%interval == 0 {
+				cnt = 0
+				select {
+				case <-ctx.Done():
+					log.Printf("partialBusyWork: quit due to context being cancelled")
+					return
+				default:
+					//
+				}
+			}
 		}
 		// Idle period
 		time.Sleep(idleDuration)
-
-		if cnt%interval == 0 {
-			cnt = 0
-			select {
-			case <-ctx.Done():
-				log.Printf("partialBusyWork: quit due to context being cancelled")
-				return
-			default:
-				//
-			}
-		}
 	}
 }
 
-func eatCPU(ctx context.Context, c float64) {
+func eatCPU(ctx context.Context, wg *sync.WaitGroup, c float64) {
 	fmt.Printf("Eating %-12s", "CPU...")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var wg sync.WaitGroup
 	fullCores := int(c)
 	partialCoreRatio := c - float64(fullCores)
 
