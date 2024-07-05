@@ -92,7 +92,7 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	dlEat := parseEatDeadline(dl)
 
 	rootCtx, cancel := getRootContext(dlEat)
-	fmt.Printf("Want to eat %2.1fCPU, %s Memory\n", cEat, m)
+	fmt.Printf("Want to eat %2.3fCPU, %s Memory\n", cEat, m)
 	eatMemory(mEat)
 	eatCPU(rootCtx, cEat)
 	waitUtil(rootCtx, cancel, dlEat)

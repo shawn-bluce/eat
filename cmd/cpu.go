@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -28,8 +29,20 @@ func busyWork(ctx context.Context) {
 }
 
 func partialBusyWork(ctx context.Context, ratio float64) {
-	busyDuration := time.Duration(ratio*10) * time.Millisecond
-	idleDuration := time.Duration((1-ratio)*10) * time.Millisecond
+	const (
+		oneCycle  = 10 * time.Microsecond
+		precision = 1000
+	)
+	// round busy and idle percent
+	// case 1: ratio 0.8
+	//   busy 0.8                     idle 0.19999999999999996
+	//   busyRound 8ms                idleRound 2ms
+	//
+	// case 2: ratio 0.2
+	//   busy 0.16000000000000014     idle 0.8399999999999999
+	//   buseRound 1.6ms              idleRound 8.4ms
+	busyDuration := time.Duration(math.Floor(ratio*precision)) * oneCycle
+	idleDuration := time.Duration(math.Ceil((1-ratio)*precision)) * oneCycle
 	cnt := 0
 	for {
 		// Busy period
@@ -80,5 +93,5 @@ func eatCPU(ctx context.Context, c float64) {
 		}()
 	}
 
-	fmt.Printf("Ate %2.1f CPU cores\n", c)
+	fmt.Printf("Ate %2.3f CPU cores\n", c)
 }
