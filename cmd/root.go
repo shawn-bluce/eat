@@ -1,14 +1,20 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"github.com/pbnjay/memory"
-	"github.com/spf13/cobra"
+	"log"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
+
+	"github.com/pbnjay/memory"
+	"github.com/spf13/cobra"
 )
+
+const SleepDurationEachIteration = 100 * time.Millisecond
 
 func getCPUAndMemory() (uint64, uint64) {
 	cpuCount := uint64(runtime.NumCPU())
@@ -22,31 +28,48 @@ var RootCmd = &cobra.Command{
 	Run:   eatFunction,
 }
 
-func waitForever() {
+func waitUtil(ctx context.Context, ctxCancel context.CancelFunc) {
 	sigs := make(chan os.Signal, 1)
-
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	done := make(chan bool, 1)
-
-	go func() {
-		sig := <-sigs
-		fmt.Println()
-		fmt.Println(sig)
-		done <- true
-	}()
-
 	fmt.Println("Press Ctrl + C to exit...")
-	<-done
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case sig := <-sigs:
+			log.Printf("\nReceive exit signal: %v\n", sig)
+			ctxCancel()
+			return
+		default:
+			time.Sleep(SleepDurationEachIteration)
+		}
+	}
 }
 
-func eatFunction(cmd *cobra.Command, args []string) {
+func getRootContext(dlEat time.Duration) (context.Context, context.CancelFunc) {
+	var (
+		cancel  context.CancelFunc
+		rootCtx context.Context
+	)
+	if dlEat > 0 {
+		deadline := time.Now().Add(dlEat)
+		rootCtx, cancel = context.WithDeadline(context.Background(), deadline)
+	} else {
+		rootCtx = context.Background()
+		cancel = func() {}
+	}
+	return rootCtx, cancel
+}
+
+func eatFunction(cmd *cobra.Command, _ []string) {
 	cpuCount, memoryBytes := getCPUAndMemory()
 	fmt.Printf("Have %dC%dG.\n", cpuCount, memoryBytes/1024/1024/1024)
 
 	// Get the flags
 	c, _ := cmd.Flags().GetString("cpu_usage")
 	m, _ := cmd.Flags().GetString("memory_usage")
+	dl, _ := cmd.Flags().GetString("time_deadline")
 
 	if c == "0" && m == "0m" {
 		fmt.Println("Error: no cpu or memory usage specified")
@@ -55,9 +78,11 @@ func eatFunction(cmd *cobra.Command, args []string) {
 
 	cEat := parseEatCPUCount(c)
 	mEat := parseEatMemoryBytes(m)
+	dlEat := parseEatDeadline(dl)
 
+	rootCtx, cancel := getRootContext(dlEat)
 	fmt.Printf("Want to eat %2.1fCPU, %s Memory\n", cEat, m)
 	eatMemory(mEat)
-	eatCPU(cEat)
-	waitForever()
+	eatCPU(rootCtx, cEat)
+	waitUtil(rootCtx, cancel)
 }

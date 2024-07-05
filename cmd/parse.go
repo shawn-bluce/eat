@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/pbnjay/memory"
 	"runtime"
 	"strconv"
+	"time"
+
+	"github.com/pbnjay/memory"
 )
 
 func parseEatCPUCount(c string) float64 {
@@ -66,4 +68,15 @@ func parseEatMemoryBytes(m string) uint64 {
 		}
 	}
 	return 0
+}
+
+func parseEatDeadline(eta string) time.Duration {
+	duration, err := time.ParseDuration(eta)
+	if err != nil {
+		return time.Duration(0)
+	}
+	if duration <= 0 {
+		return time.Duration(0)
+	}
+	return duration
 }

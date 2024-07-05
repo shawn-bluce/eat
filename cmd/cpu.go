@@ -1,33 +1,60 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"runtime"
 	"sync"
 	"time"
 )
 
-func busyWork() {
+const interval = 10000
+
+func busyWork(ctx context.Context) {
+	cnt := 0
 	for {
-		_ = 1 + 1
+		cnt += 1
+		if cnt%interval == 0 {
+			cnt = 0
+			select {
+			case <-ctx.Done():
+				log.Printf("busyWork: quit due to context be cancelled")
+				return
+			default:
+			}
+		}
 	}
 }
 
-func partialBusyWork(ratio float64) {
+func partialBusyWork(ctx context.Context, ratio float64) {
 	busyDuration := time.Duration(ratio*10) * time.Millisecond
 	idleDuration := time.Duration((1-ratio)*10) * time.Millisecond
-
+	cnt := 0
 	for {
-		start := time.Now()
-		for time.Since(start) < busyDuration {
-			_ = 1 + 1
+		// Busy period
+		busyStart := time.Now()
+		for time.Since(busyStart) < busyDuration {
+			cnt += 1 // Simulate work
 		}
+		// Idle period
 		time.Sleep(idleDuration)
+
+		if cnt%interval == 0 {
+			cnt = 0
+			select {
+			case <-ctx.Done():
+				log.Printf("partialBusyWork: quit due to context being cancelled")
+				return
+			default:
+				//
+			}
+		}
 	}
 }
 
-func eatCPU(c float64) {
-	fmt.Printf("Eating CPU...          ")
+func eatCPU(ctx context.Context, c float64) {
+	fmt.Printf("Eating %-12s", "CPU...")
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -40,7 +67,7 @@ func eatCPU(c float64) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			busyWork()
+			busyWork(ctx)
 		}()
 	}
 
@@ -49,7 +76,7 @@ func eatCPU(c float64) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			partialBusyWork(partialCoreRatio)
+			partialBusyWork(ctx, partialCoreRatio)
 		}()
 	}
 
