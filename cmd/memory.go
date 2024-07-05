@@ -1,6 +1,8 @@
 package cmd
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func eatMemory(memoryBytes uint64) {
 	if memoryBytes == 0 {
@@ -8,7 +10,7 @@ func eatMemory(memoryBytes uint64) {
 	}
 
 	memoryBlock := make([]byte, memoryBytes)
-	fmt.Printf("Eating memory...          ")
+	fmt.Printf("Eating %-12s", "memory...")
 	for i := range memoryBlock {
 		memoryBlock[i] = byte(i % 256)
 	}
