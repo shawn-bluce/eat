@@ -6,6 +6,8 @@ Developer will encounter the need to quickly occupy CPU and memory, I am also de
 # Todo
 
 - [x] Support `eat -c 35%` and `eat -m 35%`
+- [x] support gracefully exit: capture process signal SIGINT(2), SIGTERM(15)
+- [x] support deadline: `-t` specify the duration eat progress. such as "300ms", "1.5h", "2h45m". (unit: "ns", "us" (or "µs"), "ms", "s", "m", "h")
 - [] CPU Affinity
 - [] Memory read/write, prevent memory from being swapped out
 - [] Dynamic adjustment of CPU and memory usage
@@ -24,6 +26,7 @@ eat -m 100%         # eating all memory
 eat -c 2.5 -m 1.5g  # eating 2.5 CPU core and 1.5GB memory
 eat -c 3 -m 200m    # eating 3 CPU core and 200MB memory
 eat -c 100% -m 100% # eating all CPU core and memory
+eat -c 100% -t 1h # eating all CPU core and quit after 1hour
 ```
 
 > Tips:
@@ -43,6 +46,8 @@ go build -o eat
 # 待办
 
 - [x] 支持`eat -c 35%`和`eat -m 35%`
+- [x] 支持优雅退出: 捕捉进程 SIGINT, SIGTERM 信号实现有序退出
+- [x] 支持时限: `-t` 限制吃资源的时间，示例 "300ms", "1.5h", "2h45m". (单位: "ns", "us" (or "µs"), "ms", "s", "m", "h")
 - [] CPU亲和性
 - [] 内存读写，防止内存被交换出去
 - [] 动态调整CPU和内存使用
@@ -61,6 +66,7 @@ eat -m 100%         # 占用所有内存
 eat -c 2.5 -m 1.5g  # 占用2.5个CPU核和1.5GB内存
 eat -c 3 -m 200m    # 占用3个CPU核和200MB内存
 eat -c 100% -m 100% # 占用所有CPU核和内存
+eat -c 100% -t 1h   # 占用所有CPU核并在一小时后退出
 ```
 
 > 提示：
