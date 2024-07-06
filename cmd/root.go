@@ -16,8 +16,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const SleepDurationEachIteration = 100 * time.Millisecond
-
 func getCPUAndMemory() (uint64, uint64) {
 	cpuCount := uint64(runtime.NumCPU())
 	memoryBytes := memory.TotalMemory()
@@ -52,7 +50,7 @@ func gracefulExit(ctx context.Context, ctxCancel context.CancelFunc) {
 			ctxCancel()
 			return
 		default:
-			time.Sleep(SleepDurationEachIteration)
+			time.Sleep(durationEachSignCheck)
 		}
 	}
 }
@@ -86,6 +84,7 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	c, _ := cmd.Flags().GetString("cpu_usage")
 	m, _ := cmd.Flags().GetString("memory_usage")
 	dl, _ := cmd.Flags().GetString("time_deadline")
+	r, _ := cmd.Flags().GetString("memory_refresh_interval")
 
 	if c == "0" && m == "0m" {
 		fmt.Println("Error: no cpu or memory usage specified")
@@ -94,12 +93,20 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 
 	cEat := parseEatCPUCount(c)
 	mEat := parseEatMemoryBytes(m)
-	dlEat := parseEatDeadline(dl)
+	dlEat := parseTimeDuration(dl)
+	mAteRenew := parseTimeDuration(r)
 
-	rootCtx, cancel := getRootContext(dlEat)
 	var wg sync.WaitGroup
+	rootCtx, cancel := getRootContext(dlEat)
+	defer cancel()
 	fmt.Printf("Want to eat %2.3fCPU, %s Memory\n", cEat, m)
-	eatMemory(mEat)
+	eatMemory(rootCtx, &wg, mEat, mAteRenew)
 	eatCPU(rootCtx, &wg, cEat)
+	// in case that all sub goroutines are dead due to runtime error like memory not enough.
+	// so the main gooutine automaticlly quit as well, don't wait user ctrl+c or context deadline.
+	go func(wgp *sync.WaitGroup) {
+		wgp.Wait()
+		cancel()
+	}(&wg)
 	waitUtil(rootCtx, &wg, cancel, dlEat)
 }
