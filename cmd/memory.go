@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// ActiveMemoryManager struct to encapsulate buffer and related methods
+// ActiveMemoryManager struct to encapsulate buffers and related methods
 type ActiveMemoryManager struct {
-	buffer  []byte
+	buffers [][]byte
 	size    uint64
 	mu      sync.Mutex
 }
@@ -22,22 +22,58 @@ func NewActiveMemoryManager(size uint64) *ActiveMemoryManager {
 	return &ActiveMemoryManager{size: size}
 }
 
-// AllocateMemory initializes the memory buffer
+// AllocateMemory initializes the memory buffers
 func (m *ActiveMemoryManager) AllocateMemory(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.buffer != nil {
+	if m.buffers != nil {
 		return errors.New("allocated, please free it before retry")
 	}
 	curFreeSize := unimem.FreeMemory()
 	if m.size > curFreeSize {
 		return fmt.Errorf("free memory not enough: %d > %d", m.size, curFreeSize)
 	}
-	fmt.Printf("Eating %-12s", "memory...")
-	m.buffer = make([]byte, m.size)
-	for i := range m.buffer {
-		m.buffer[i] = byte(i % 256)
+	// split request memory to multiple small-size chunks
+	const unitChunk = chunkSizeMemoryWokerEachAllocate
+	nChunks := m.size / unitChunk
+	remain := m.size % unitChunk
+	bufSizes := []uint64{}
+	for i := uint64(0); i < nChunks; i++ {
+		bufSizes = append(bufSizes, unitChunk)
 	}
+	if remain > 0 {
+		bufSizes = append(bufSizes, remain)
+	}
+
+	fmt.Printf("Eating %-12sStart\n", "memory...")
+	// Because free memory not equal to contiguous free memory, `make([]byte, m.size)` may fail
+	// So we change the direct allocation to "divide and conquer", each time we only allocate small chunk of memory.
+	m.buffers = make([][]byte, len(bufSizes))
+	for i := range m.buffers {
+		// This also has the added benefit of checking that context is canceled before each small memory allocation,
+	    // which gives you a chance to gracefully shut down eat memory goroutine instead of brutally killing it
+		// if you want to `eat` dozens of gigabytes of memory and the OS has swap partition turned on .
+		select {
+		case <-ctx.Done():
+			m.buffers = nil
+			return errors.New("cancel allocation")
+		default:
+			//
+		}
+		curSize := bufSizes[i]
+		curFreeSize = unimem.FreeMemory()
+		if curSize > curFreeSize {
+			m.buffers = nil
+			return fmt.Errorf("free memory not enough: %d > %d", curSize, curFreeSize)
+		}
+
+		buffer := make([]byte, curSize)
+		for i := range buffer {
+			buffer[i] = byte(i % 256)
+		}
+		m.buffers[i] = buffer
+	}
+
 	fmt.Printf("Ate %d bytes memory\n", m.size)
 	return nil
 }
@@ -46,12 +82,14 @@ func (m *ActiveMemoryManager) AllocateMemory(ctx context.Context) error {
 func (m *ActiveMemoryManager) RefreshMemory() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.buffer == nil {
+	if m.buffers == nil {
 		return
 	}
-	for i := range m.buffer {
-		// XOR with 0 keeps the value unchanged but touches the memory
-		m.buffer[i] ^= 0
+	for i := range m.buffers {
+		for j := range m.buffers[i] {
+			// XOR with 0 keeps the value unchanged but touches the memory
+			m.buffers[i][j] ^= 0
+		}
 	}
 }
 
@@ -59,10 +97,13 @@ func (m *ActiveMemoryManager) RefreshMemory() {
 func (m *ActiveMemoryManager) FreeMemory() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.buffer == nil {
+	if m.buffers == nil {
 		return
 	}
-	m.buffer = nil
+	for i := range m.buffers {
+		m.buffers[i] = nil
+	}
+	m.buffers = nil
 }
 
 func eatMemWork(ctx context.Context, size uint64, refreshInterval time.Duration) {
@@ -81,7 +122,7 @@ func eatMemWork(ctx context.Context, size uint64, refreshInterval time.Duration)
 			m.RefreshMemory()
 			log.Println("eatMemWork: Memory refreshed to keep it active")
 		case <-ctx.Done():
-			log.Println("eatMemWork: quit due to context being cancelled")
+			log.Println("eatMemWork: Quit due to context being cancelled")
 			m.FreeMemory()
 			log.Println("eatMemWork: Memory freed")
 			return
