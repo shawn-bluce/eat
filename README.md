@@ -7,11 +7,11 @@ Developer will encounter the need to quickly occupy CPU and memory, I am also de
 
 - [x] Support `eat -c 35%` and `eat -m 35%`
 - [x] support gracefully exit: capture process signal SIGINT(2), SIGTERM(15)
-- [x] support deadline: `-t` specify the duration eat progress. such as "300ms", "1.5h", "2h45m". (unit: "ns", "us" (or "µs"), "ms", "s", "m", "h")
-- [] CPU Affinity
-- [] Memory read/write, prevent memory from being swapped out
-- [] Dynamic adjustment of CPU and memory usage
-- [] Eat GPU
+- [x] support deadline: `-t` specify the duration of eat progress. such as "300ms", "1.5h", "2h45m". (unit: "ns", "us" (or "µs"), "ms", "s", "m", "h")
+- [ ] CPU Affinity
+- [x] Memory read/write periodically , prevent memory from being swapped out
+- [ ] Dynamic adjustment of CPU and memory usage
+- [ ] Eat GPU
 
 # Usage
 
@@ -48,10 +48,10 @@ go build -o eat
 - [x] 支持`eat -c 35%`和`eat -m 35%`
 - [x] 支持优雅退出: 捕捉进程 SIGINT, SIGTERM 信号实现有序退出
 - [x] 支持时限: `-t` 限制吃资源的时间，示例 "300ms", "1.5h", "2h45m". (单位: "ns", "us" (or "µs"), "ms", "s", "m", "h")
-- [] CPU亲和性
-- [] 内存读写，防止内存被交换出去
-- [] 动态调整CPU和内存使用
-- [] 吃GPU
+- [ ] CPU亲和性
+- [x] 定期内存读写，防止内存被交换出去
+- [ ] 动态调整CPU和内存使用
+- [ ] 吃GPU
 
 # 使用
 

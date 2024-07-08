@@ -10,13 +10,11 @@ import (
 	"time"
 )
 
-const interval = 10000
-
 func busyWork(ctx context.Context) {
 	cnt := 0
 	for {
 		cnt += 1
-		if cnt%interval == 0 {
+		if cnt%intervalCpuWorkerCheckContextDone == 0 {
 			cnt = 0
 			select {
 			case <-ctx.Done():
@@ -38,7 +36,7 @@ func partialBusyWork(ctx context.Context, ratio float64) {
 	//   busy 0.8                     idle 0.19999999999999996
 	//   busyRound 8ms                idleRound 2ms
 	//
-	// case 2: ratio 0.2
+	// case 2: ratio 0.16
 	//   busy 0.16000000000000014     idle 0.8399999999999999
 	//   buseRound 1.6ms              idleRound 8.4ms
 	busyDuration := time.Duration(math.Floor(ratio*precision)) * oneCycle
@@ -49,7 +47,7 @@ func partialBusyWork(ctx context.Context, ratio float64) {
 		busyStart := time.Now()
 		for time.Since(busyStart) < busyDuration {
 			cnt += 1 // Simulate work
-			if cnt%interval == 0 {
+			if cnt%intervalCpuWorkerCheckContextDone == 0 {
 				cnt = 0
 				select {
 				case <-ctx.Done():
