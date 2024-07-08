@@ -33,8 +33,8 @@ func (m *ActiveMemoryManager) AllocateMemory(ctx context.Context) error {
 	if m.size > curFreeSize {
 		return fmt.Errorf("free memory not enough: %d > %d", m.size, curFreeSize)
 	}
-	// split request memory to multiple small-size chunks
-	const unitChunk = chunkSizeMemoryWokerEachAllocate
+	//split request memory to multiple small-size chunks
+	const unitChunk = chunkSizeMemoryWorkerEachAllocate
 	nChunks := m.size / unitChunk
 	remain := m.size % unitChunk
 	bufSizes := []uint64{}
@@ -51,7 +51,7 @@ func (m *ActiveMemoryManager) AllocateMemory(ctx context.Context) error {
 	m.buffers = make([][]byte, len(bufSizes))
 	for i := range m.buffers {
 		// This also has the added benefit of checking that context is canceled before each small memory allocation,
-	    // which gives you a chance to gracefully shut down eat memory goroutine instead of brutally killing it
+		// which gives you a chance to gracefully shut down eat memory goroutine instead of brutally killing it
 		// if you want to `eat` dozens of gigabytes of memory and the OS has swap partition turned on .
 		select {
 		case <-ctx.Done():
