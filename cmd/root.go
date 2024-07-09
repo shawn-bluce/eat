@@ -70,8 +70,7 @@ func getRootContext(dlEat time.Duration) (context.Context, context.CancelFunc) {
 		deadline := time.Now().Add(dlEat)
 		rootCtx, cancel = context.WithDeadline(context.Background(), deadline)
 	} else {
-		rootCtx = context.Background()
-		cancel = func() {}
+		rootCtx, cancel = context.WithCancel(context.Background())
 	}
 	return rootCtx, cancel
 }
@@ -103,7 +102,7 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	eatMemory(rootCtx, &wg, mEat, mAteRenew)
 	eatCPU(rootCtx, &wg, cEat)
 	// in case that all sub goroutines are dead due to runtime error like memory not enough.
-	// so the main gooutine automaticlly quit as well, don't wait user ctrl+c or context deadline.
+	// so the main goroutine automatically quit as well, don't wait user ctrl+c or context deadline.
 	go func(wgp *sync.WaitGroup) {
 		wgp.Wait()
 		cancel()
