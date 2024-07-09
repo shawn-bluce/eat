@@ -28,11 +28,16 @@ func busyWork(ctx context.Context) {
 	}
 }
 
-func partialBusyWork(ctx context.Context, ratio float64) {
+func partialBusyWork(ctx context.Context) {
 	const (
 		oneCycle  = 10 * time.Microsecond
 		precision = 1000
 	)
+	ratio, ok := ctx.Value(cpuWorkerPartialCoreRatioContextKey).(float64)
+	if !ok {
+		log.Printf("partialBusyWork: partial core ratio context key not set or type ")
+		return
+	}
 	// round busy and idle percent
 	// case 1: ratio 0.8
 	//   busy 0.8                     idle 0.19999999999999996
@@ -63,6 +68,20 @@ func partialBusyWork(ctx context.Context, ratio float64) {
 		// Idle period
 		time.Sleep(idleDuration)
 	}
+}
+
+func startEatCpuWorker(ctx context.Context, wg *sync.WaitGroup, workerName string, idx int, workerFunc func(ctx context.Context), cpuAffinitiesEat []uint) {
+	defer wg.Done()
+	cleanup, err := setCpuAffWrapper(idx, cpuAffinitiesEat)
+	if err != nil {
+		fmt.Printf("Error: %s failed to set cpu affinities, reason: %s\n", workerName, err.Error())
+		return
+	}
+	if cleanup != nil {
+		fmt.Printf("Worker %s: CPU affinities set to %d\n", workerName, cpuAffinitiesEat[idx])
+		defer cleanup()
+	}
+	workerFunc(ctx)
 }
 
 func setCpuAffWrapper(index int, cpuAffinitiesEat []uint) (func(), error) {
@@ -108,40 +127,17 @@ func eatCPU(ctx context.Context, wg *sync.WaitGroup, c float64, cpuAffinitiesEat
 	// eat full cores
 	for i := 0; i < fullCores; i++ {
 		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			workerName := fmt.Sprintf("%d@fullCore", idx)
-			cleanup, err := setCpuAffWrapper(idx, cpuAffinitiesEat)
-			if err != nil {
-				fmt.Printf("Error: %s failed to set cpu affinities, reason: %s\n", workerName, err.Error())
-				return
-			}
-			if cleanup != nil {
-				fmt.Printf("CpuWorker %s: CPU affinities set to %d\n", workerName, cpuAffinitiesEat[idx])
-				defer cleanup()
-			}
-			busyWork(ctx)
-		}(i)
+		workerName := fmt.Sprintf("%d@fullCore", i)
+		go startEatCpuWorker(ctx, wg, workerName, i, busyWork, cpuAffinitiesEat)
 	}
 
 	// eat partial core
 	if partialCoreRatio > 0 {
-		partialCoreIdx := fullCores // the last core affinity
+		i := fullCores // the last core affinity
 		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			workerName := fmt.Sprintf("%d@partCore", idx)
-			cleanup, err := setCpuAffWrapper(partialCoreIdx, cpuAffinitiesEat)
-			if err != nil {
-				fmt.Printf("Error: %s failed to set cpu affinities, reason: %s\n", workerName, err.Error())
-				return
-			}
-			if cleanup != nil {
-				fmt.Printf("CpuWorker %s: CPU affinities set to %d\n", workerName, cpuAffinitiesEat[idx])
-				defer cleanup()
-			}
-			partialBusyWork(ctx, partialCoreRatio)
-		}(partialCoreIdx)
+		workerName := fmt.Sprintf("%d@partCore", i)
+		childCtx := context.WithValue(ctx, cpuWorkerPartialCoreRatioContextKey, partialCoreRatio)
+		go startEatCpuWorker(childCtx, wg, workerName, i, partialBusyWork, cpuAffinitiesEat)
 	}
 
 	fmt.Printf("Ate %2.3f CPU cores\n", c)
