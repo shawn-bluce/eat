@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"runtime"
@@ -80,10 +81,11 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	fmt.Printf("Have %dC%dG.\n", cpuCount, memoryBytes/1024/1024/1024)
 
 	// Get the flags
-	c, _ := cmd.Flags().GetString("cpu_usage")
-	m, _ := cmd.Flags().GetString("memory_usage")
-	dl, _ := cmd.Flags().GetString("time_deadline")
-	r, _ := cmd.Flags().GetString("memory_refresh_interval")
+	c, _ := cmd.Flags().GetString("cpu-usage")
+	cAff, _ := cmd.Flags().GetIntSlice("cpu-affinities")
+	m, _ := cmd.Flags().GetString("memory-usage")
+	dl, _ := cmd.Flags().GetString("time-deadline")
+	r, _ := cmd.Flags().GetString("memory-refresh-interval")
 
 	if c == "0" && m == "0m" {
 		fmt.Println("Error: no cpu or memory usage specified")
@@ -91,16 +93,26 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	}
 
 	cEat := parseEatCPUCount(c)
+	phyCores := runtime.NumCPU()
+	if int(math.Ceil(cEat)) > phyCores {
+		fmt.Printf("Error: user specified cpu cores exceed system physical cores(%d)\n", phyCores)
+		return
+	}
 	mEat := parseEatMemoryBytes(m)
 	dlEat := parseTimeDuration(dl)
 	mAteRenew := parseTimeDuration(r)
+	cpuAffinitiesEat, err := parseCpuAffinity(cAff, cEat)
+	if err != nil {
+		fmt.Printf("Error: failed to parse cpu affinities, reason: %s\n", err.Error())
+		return
+	}
 
 	var wg sync.WaitGroup
 	rootCtx, cancel := getRootContext(dlEat)
 	defer cancel()
 	fmt.Printf("Want to eat %2.3fCPU, %s Memory\n", cEat, m)
 	eatMemory(rootCtx, &wg, mEat, mAteRenew)
-	eatCPU(rootCtx, &wg, cEat)
+	eatCPU(rootCtx, &wg, cEat, cpuAffinitiesEat)
 	// in case that all sub goroutines are dead due to runtime error like memory not enough.
 	// so the main goroutine automatically quit as well, don't wait user ctrl+c or context deadline.
 	go func(wgp *sync.WaitGroup) {
