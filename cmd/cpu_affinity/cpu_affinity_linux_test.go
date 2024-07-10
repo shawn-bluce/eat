@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"slices"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestSchedGetAffinity(t *testing.T) {
@@ -57,9 +59,14 @@ func genRandomCpuCore(num int) []uint {
 
 func TestSchedSetAffinity(t *testing.T) {
 	pid := os.Getpid()
-	mask := new(cpuSet)
+	mask := new(unix.CPUSet)
 	mask.Zero()
-	modCpuCores := genRandomCpuCore(2)
+	var modCpuCores []uint
+	if runtime.NumCPU() > 2 {
+		modCpuCores = genRandomCpuCore(2)
+	} else {
+		modCpuCores = []uint{0}
+	}
 	cpuAffDeputy := CpuAffinityDeputy{}
 	err := cpuAffDeputy.SetCpuAffinities(uint(pid), modCpuCores...)
 	if err != nil {
@@ -83,6 +90,5 @@ func TestSchedSetAffinity(t *testing.T) {
 		if expect != val {
 			t.Errorf("cpu %d affinities not equal expect: %v", i, expect)
 		}
-
 	}
 }
