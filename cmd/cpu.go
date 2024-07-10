@@ -103,7 +103,7 @@ func setCpuAffWrapper(index int, cpuAffinitiesEat []uint) (func(), error) {
 	// A goroutine should **call LockOSThread before** calling OS services or non-Go library functions
 	// that depend on per-thread state.
 	runtime.LockOSThread() // IMPORTANT!! Only limit the system thread affinity, not the whole go program process
-	var cpuAffDeputy cpu_affinity.CpuAffinitySysCall = cpu_affinity.CpuAffinityDeputy{}
+	var cpuAffDeputy = cpu_affinity.NewCpuAffinityDeputy()
 	if !cpuAffDeputy.IsImplemented() {
 		return nil, fmt.Errorf("SetCpuAffinities currently not support in this os: %s", runtime.GOOS)
 	}

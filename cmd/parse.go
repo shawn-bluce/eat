@@ -88,7 +88,7 @@ func parseCpuAffinity(affCores []int, needCores float64) ([]uint, error) {
 	if len(affCores) == 0 { // user don't set cpu affinity, skip
 		return nil, nil
 	}
-	var cpuAffDeputy cpu_affinity.CpuAffinitySysCall = cpu_affinity.CpuAffinityDeputy{}
+	var cpuAffDeputy = cpu_affinity.NewCpuAffinityDeputy()
 	if !cpuAffDeputy.IsImplemented() {
 		return nil, fmt.Errorf("SetCpuAffinities currently not support in this os: %s", runtime.GOOS)
 	}

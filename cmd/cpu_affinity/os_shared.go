@@ -7,3 +7,7 @@ type CpuAffinitySysCall interface {
 	SetCpuAffinities(pid uint, cpus ...uint) error
 	GetCpuAffinities(pid uint) (map[uint]bool, error)
 }
+
+func NewCpuAffinityDeputy() CpuAffinitySysCall {
+	return CpuAffinityDeputy{}
+}
