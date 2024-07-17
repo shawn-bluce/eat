@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 	"strconv"
 	"time"
 
+	"eat/cmd/cpu_affinity"
 	"github.com/pbnjay/memory"
 )
 
@@ -79,4 +81,34 @@ func parseTimeDuration(eta string) time.Duration {
 		return time.Duration(0)
 	}
 	return duration
+}
+
+// parseCpuAffinity validate cpu cores and check it cover request cores
+func parseCpuAffinity(affCores []int, needCores float64) ([]uint, error) {
+	if len(affCores) == 0 { // user don't set cpu affinity, skip
+		return nil, nil
+	}
+	var cpuAffDeputy = cpu_affinity.NewCpuAffinityDeputy()
+	if !cpuAffDeputy.IsImplemented() {
+		return nil, fmt.Errorf("SetCpuAffinities currently not support in this os: %s", runtime.GOOS)
+	}
+	numCpu := runtime.NumCPU()
+	var validCpuAffList []uint
+	for _, cpu := range affCores {
+		if cpu < 0 {
+			continue
+		}
+		if cpu >= numCpu {
+			continue
+		}
+		validCpuAffList = append(validCpuAffList, uint(cpu))
+	}
+	fullCores := int(math.Ceil(needCores))
+	if len(validCpuAffList) < fullCores {
+		return nil, fmt.Errorf(
+			"each request cpu cores need specify its affinity, aff %d < req %d",
+			len(validCpuAffList), fullCores,
+		)
+	}
+	return validCpuAffList, nil
 }

@@ -1,10 +1,11 @@
 module eat
 
-go 1.20
+go 1.22
 
 require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
 	github.com/spf13/cobra v1.8.1
+	golang.org/x/sys v0.22.0
 )
 
 require (
