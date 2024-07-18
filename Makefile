@@ -1,5 +1,5 @@
 NAME=eat
-BINDIR=dist
+BINDIR=$(shell mkdir -p dist; echo 'dist')
 BRANCH=$(shell git branch --show-current)
 ifeq ($(BRANCH),master) # master production branch
 BUILDTAG=master-$(shell git rev-parse HEAD)
@@ -137,7 +137,8 @@ zip_releases=$(addsuffix .zip, $(WINDOWS_ARCH_LIST))
 
 $(gz_releases): %.gz : %
 	chmod +x $(BINDIR)/$(NAME)-$(basename $@)
-	gzip -f -S -$(BUILDTAG).gz $(BINDIR)/$(NAME)-$(basename $@)
+	gzip -c $(BINDIR)/$(NAME)-$(basename $@) > $(BINDIR)/$(NAME)-$(basename $@)-$(BUILDTAG).gz
+	rm $(BINDIR)/$(NAME)-$(basename $@)
 
 $(zip_releases): %.zip : %
 	zip -m -j $(BINDIR)/$(NAME)-$(basename $@)-$(BUILDTAG).zip $(BINDIR)/$(NAME)-$(basename $@).exe
@@ -153,4 +154,4 @@ lint:
 	golangci-lint run ./...
 
 clean:
-	rm $(BINDIR)/*
+	rm -f $(BINDIR)/*
