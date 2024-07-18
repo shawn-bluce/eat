@@ -1,0 +1,204 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag version to release"
+        required: true
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        jobs:
+          - { goos: darwin, goarch: arm64, output: arm64, test: test }
+          - { goos: darwin, goarch: amd64, goamd64: v1, output: amd64-compatible }
+          - { goos: darwin, goarch: amd64, goamd64: v3, output: amd64, test: test }
+
+          - { goos: linux, goarch: '386', output: '386' }
+          - { goos: linux, goarch: amd64, goamd64: v1, output: amd64-compatible }
+          - { goos: linux, goarch: amd64, goamd64: v3, output: amd64, test: test }
+          - { goos: linux, goarch: arm64, output: arm64, test: test }
+          - { goos: linux, goarch: arm, goarm: '5', output: armv5 }
+          - { goos: linux, goarch: arm, goarm: '6', output: armv6 }
+          - { goos: linux, goarch: arm, goarm: '7', output: armv7 }
+          - { goos: linux, goarch: mips, mips: hardfloat, output: mips-hardfloat }
+          - { goos: linux, goarch: mips, mips: softfloat, output: mips-softfloat }
+          - { goos: linux, goarch: mipsle, mips: hardfloat, output: mipsle-hardfloat }
+          - { goos: linux, goarch: mipsle, mips: softfloat, output: mipsle-softfloat }
+          - { goos: linux, goarch: mips64, output: mips64 }
+          - { goos: linux, goarch: mips64le, output: mips64le }
+          - { goos: linux, goarch: loong64, output: loong64-abi1, abi: '1' }
+          - { goos: linux, goarch: loong64, output: loong64-abi2, abi: '2' }
+          - { goos: linux, goarch: riscv64, output: riscv64 }
+          - { goos: linux, goarch: s390x, output: s390x }
+
+          - { goos: windows, goarch: '386', output: '386' }
+          - { goos: windows, goarch: amd64, goamd64: v1, output: amd64-compatible }
+          - { goos: windows, goarch: amd64, goamd64: v3, output: amd64, test: test }
+          - { goos: windows, goarch: arm, goarm: '7', output: armv7 }
+          - { goos: windows, goarch: arm64, output: arm64, test: test }
+
+          - { goos: freebsd, goarch: '386', output: '386' }
+          - { goos: freebsd, goarch: amd64, goamd64: v1, output: amd64-compatible }
+          - { goos: freebsd, goarch: amd64, goamd64: v3, output: amd64 }
+          - { goos: freebsd, goarch: arm64, output: arm64 }
+
+          - { goos: android, goarch: '386', ndk: i686-linux-android34, output: '386' }
+          - { goos: android, goarch: amd64, ndk: x86_64-linux-android34, output: amd64 }
+          - { goos: android, goarch: arm, ndk: armv7a-linux-androideabi34, output: armv7 }
+          - { goos: android, goarch: arm64, ndk: aarch64-linux-android34, output: arm64-v8 }
+
+    steps:
+      -
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      -
+        name: Set up Go
+        if: ${{ matrix.jobs.goversion == '' }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      -
+        name: Set up Go (custom)
+        if: ${{ matrix.jobs.goversion != ''}}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.jobs.goversion }}
+
+      -
+        name: Set variables
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' }}
+        run: echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+        shell: bash
+
+      -
+        name: Set Runtime Variable
+        run: |
+          echo "BUILDTIME=$(date)" >> $GITHUB_ENV
+          echo "CGO_ENABLED=0" >> $GITHUB_ENV
+          echo "BUILDHASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "BUILDTAG=-extldflags --static" >> $GITHUB_ENV
+
+      -
+        name: Setup NDK
+        if: ${{ matrix.jobs.goos == 'android' }}
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26c
+
+      -
+        name: Set NDK path
+        if: ${{ matrix.jobs.goos == 'android' }}
+        run: |
+          echo "CC=${{steps.setup-ndk.outputs.ndk-path}}/toolchains/llvm/prebuilt/linux-x86_64/bin/${{matrix.jobs.ndk}}-clang" >> $GITHUB_ENV
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+          echo "BUILDTAG=" >> $GITHUB_ENV
+
+      -
+        name: Test
+        if: ${{ matrix.jobs.test == 'test' }}
+        run: |
+          go test ./...
+
+      -
+        name: Build core
+        env:
+          GOOS: ${{matrix.jobs.goos}}
+          GOARCH: ${{matrix.jobs.goarch}}
+          GOAMD64: ${{matrix.jobs.goamd64}}
+          GOARM: ${{matrix.jobs.arm}}
+          GOMIPS: ${{matrix.jobs.mips}}
+        run: |
+          echo $CGO_ENABLED
+          go build -v -trimpath -ldflags "${BUILDTAG} -X 'eat/cmd/version.BuildHash=$(BUILDHASH)' -X 'eat/cmd/version.BuildTime=$(BUILDTIME)' -w -s -buildid=" -o eat.out
+          if [ "${{matrix.jobs.goos}}" = "windows" ]; then
+            mv eat.out eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
+            zip -r eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.zip eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
+            rm eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
+          else
+            mv eat.out eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}
+            gzip -c eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}} > eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.gz
+            rm eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}
+          fi
+
+      -
+        name: Save version
+        run: |
+          echo ${VERSION} > version.txt
+        shell: bash
+
+      -
+        name: Archive production artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ matrix.jobs.goos }}-${{ matrix.jobs.output }}"
+          path: |
+            eat*.gz
+            eat*.zip
+            version.txt
+
+  Upload-Release:
+    permissions: write-all
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version != '' }}
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: '0'
+          fetch-tags: 'true'
+
+      -
+        name: Get tags
+        run: |
+          echo "CURRENTVERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          git fetch --tags
+          echo "PREVERSION=$(git describe --tags --abbrev=0 HEAD)" >> $GITHUB_ENV
+
+      -
+        name: Tag the commit
+        run: |
+          git tag ${{ github.event.inputs.version }}
+          git push origin ${{ github.event.inputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      -
+        name: Generate release notes
+        run: |
+          cp ./.github/gen_release_note_from_commits.sh ./
+          bash ./gen_release_note_from_commits.sh -v ${PREVERSION}...${CURRENTVERSION}
+          rm ./gen_release_note_from_commits.sh
+
+      -
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      -
+        name: Display structure of downloaded files
+        run: ls -R
+        working-directory: dist/
+
+      -
+        name: Upload Release
+        uses: softprops/action-gh-release@v2
+        if: ${{ success() }}
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          files: dist/*
+          body_path: release.md
