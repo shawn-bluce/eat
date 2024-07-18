@@ -10,7 +10,9 @@ BUILDTAG=$(shell git rev-parse HEAD)
 endif
 
 BUILDTIME=$(shell date -Iseconds --utc)
-GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-w -s -buildid='
+GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "eat/cmd/version.BuildHash=$(BUILDTAG)" \
+													-X "eat/cmd/version.BuildTime=$(BUILDTIME)" \
+													-w -s -buildid='
 
 PLATFORM_LIST = \
 	darwin-amd64-compatible \
@@ -99,7 +101,7 @@ linux-mips64le:
 
 linux-riscv64:
 	GOARCH=riscv64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
-	
+
 linux-loong64:
 	GOARCH=loong64 GOOS=linux $(GOBUILD) -o $(BINDIR)/$(NAME)-$@
 
