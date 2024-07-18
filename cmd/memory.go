@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	unimem "github.com/pbnjay/memory"
 	"log"
 	"sync"
 	"time"
+
+	unimem "github.com/pbnjay/memory"
 )
 
 // ActiveMemoryManager struct to encapsulate buffers and related methods
@@ -33,7 +34,7 @@ func (m *ActiveMemoryManager) AllocateMemory(ctx context.Context) error {
 	if m.size > curFreeSize {
 		return fmt.Errorf("free memory not enough: %d > %d", m.size, curFreeSize)
 	}
-	//split request memory to multiple small-size chunks
+	// split request memory to multiple small-size chunks
 	const unitChunk = chunkSizeMemoryWorkerEachAllocate
 	nChunks := m.size / unitChunk
 	remain := m.size % unitChunk
