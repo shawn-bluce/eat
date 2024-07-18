@@ -35,25 +35,25 @@ Flags:
 ```
 
 ```shell
-eat -c 4										# eating 4 CPU core
-eat -c 35%										# eating 35% CPU core (CPU count * 35%)
-eat -c 100%										# eating all CPU core
-eat -m 4g										# eating 4GB memory
-eat -m 20m										# eating 20MB memory
-eat -m 35%										# eating 35% memory (total memory * 35%)
-eat -m 100%										# eating all memory
-eat -c 2.5 -m 1.5g								# eating 2.5 CPU core and 1.5GB memory
-eat -c 3 -m 200m								# eating 3 CPU core and 200MB memory
-eat -c 100% -m 100%								# eating all CPU core and memory
-eat -c 100% -t 1h								# eating all CPU core and quit after 1hour
+eat -c 4		# eating 4 CPU core
+eat -c 35%		# eating 35% CPU core (CPU count * 35%)
+eat -c 100%		# eating all CPU core
+eat -m 4g		# eating 4GB memory
+eat -m 20m		# eating 20MB memory
+eat -m 35%		# eating 35% memory (total memory * 35%)
+eat -m 100%		# eating all memory
+eat -c 2.5 -m 1.5g	# eating 2.5 CPU core and 1.5GB memory
+eat -c 3 -m 200m	# eating 3 CPU core and 200MB memory
+eat -c 100% -m 100%	# eating all CPU core and memory
+eat -c 100% -t 1h	# eating all CPU core and quit after 1hour
 
-eat --cpu-affinities 0 -c 1						# only run eat in core #0 (first core)
-eat --cpu-affinities 0,1 -c 2					# run eat in core #0,1 (first and second core)
-eat --cpu-affinities 0,1,2,3 -c 100% 			# error case: in-enough cpu affinities
+eat --cpu-affinities 0 -c 1	# only run eat in core #0 (first core)
+eat --cpu-affinities 0,1 -c 2	# run eat in core #0,1 (first and second core)
+eat --cpu-affinities 0,1,2,3 -c 100% # error case: in-enough cpu affinities
 # Have 8C15G.
 # Error: failed to parse cpu affinities, reason: each request cpu cores need specify its affinity, aff 4 < req 8
-eat --cpu-affinities 0,1,2,3 -c 50%				# run eat in core #0,1,2,3 (first to fourth core)
-eat --cpu-affinities 0,1,2,3,4,5,6,7 -c 92% 	# run eat in all core(full of 7 cores, part of last core)
+eat --cpu-affinities 0,1,2,3 -c 50%	# run eat in core #0,1,2,3 (first to fourth core)
+eat --cpu-affinities 0,1,2,3,4,5,6,7 -c 92%	# run eat in all core(full of 7 cores, part of last core)
 
 ```
 
@@ -64,11 +64,11 @@ eat --cpu-affinities 0,1,2,3,4,5,6,7 -c 92% 	# run eat in all core(full of 7 cor
 
 ```shell
 # Linux
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -v -o eat
+make linux-amd64 linux-arm64
 # macOs
-GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -v -o eat_mac
+make darwin-amd64 darwin-arm64
 # Windows
-GOOS=windwos GOARCH=amd64 go build -trimpath -ldflags "-s -w" -v -o eat_win
+make windows-amd64 windows-arm64
 ```
 
 # 介绍
@@ -81,7 +81,7 @@ GOOS=windwos GOARCH=amd64 go build -trimpath -ldflags "-s -w" -v -o eat_win
 - [x] 支持`eat -c 35%`和`eat -m 35%`
 - [x] 支持优雅退出: 捕捉进程 SIGINT, SIGTERM 信号实现有序退出
 - [x] 支持时限: `-t` 限制吃资源的时间，示例 "300ms", "1.5h", "2h45m". (单位: "ns", "us" (or "µs"), "ms", "s", "m", "h")
-- [x] CPU亲和性
+- [x] CPU亲和性(绑定 CPU 核心)
   - [X] Linux 
   - [ ] macOS
   - [ ] Windows
@@ -100,34 +100,34 @@ $ ./eat.out --help
     eat [flags］
 
 Flags：
-  --cpu-affinities 整数						指定在几个核心上运行 Eat，多个核心索引之间用 ',' 分隔，索引从 0 开始。
-  -c, --cpu-usage 字符串						你想吃掉多少个 CPU（默认为 '0'）？
-  -h，--help								输出 eat 的帮助
-  -r, --memory-refresh-interval 字符串		每隔多长时间触发一次刷新，以防止被吃掉的内存被交换出去（默认值为 '5m'）
-  -m, --memory-usage 字符串					你希望吃掉多少内存（GB）（默认值 '0m'）
-  -t，--time-deadline 字符串					退出 eat 进程的截止日期（默认为 "0'）。
+  --cpu-affinities 			整数	指定在几个核心上运行 Eat，多个核心索引之间用 ',' 分隔，索引从 0 开始。
+  -c, --cpu-usage 			字符串	你想吃掉多少个 CPU（默认为 '0'）？
+  -h，--help				输出 eat 的帮助
+  -r, --memory-refresh-interval 字符串	每隔多长时间触发一次刷新，以防止被吃掉的内存被交换出去（默认值为 '5m'）
+  -m, --memory-usage 字符串		你希望吃掉多少内存（GB）（默认值 '0m'）
+  -t，--time-deadline 字符串		退出 eat 进程的截止日期（默认为 "0'）。
 ```
 
 ```shell
-eat -c 4									# 占用4个CPU核
-eat -c 35%									# 占用35%CPU核（CPU核数 * 35%）
-eat -c 100%									# 占用所有CPU核
-eat -m 4g									# 占用4GB内存
-eat -m 20m									# 占用20MB内存
-eat -m 35%									# 占用35%内存（总内存 * 35%）
-eat -m 100%									# 占用所有内存
-eat -c 2.5 -m 1.5g							# 占用2.5个CPU核和1.5GB内存
-eat -c 3 -m 200m							# 占用3个CPU核和200MB内存
-eat -c 100% -m 100%							# 占用所有CPU核和内存
-eat -c 100% -t 1h							# 占用所有CPU核并在一小时后退出
+eat -c 4	# 占用4个CPU核
+eat -c 35%	# 占用35%CPU核（CPU核数 * 35%）
+eat -c 100%	# 占用所有CPU核
+eat -m 4g	# 占用4GB内存
+eat -m 20m	# 占用20MB内存
+eat -m 35%	# 占用35%内存（总内存 * 35%）
+eat -m 100%	# 占用所有内存
+eat -c 2.5 -m 1.5g	# 占用2.5个CPU核和1.5GB内存
+eat -c 3 -m 200m	# 占用3个CPU核和200MB内存
+eat -c 100% -m 100%	# 占用所有CPU核和内存
+eat -c 100% -t 1h	# 占用所有CPU核并在一小时后退出
 
-eat --cpu-affinities 0 -c 1					# 只占用 #0 第一个核心
-eat --cpu-affinities 0,1 -c 2				# 占用 #0,1 前两个个核心
-eat --cpu-affinities 0,1,2,3 -c 100% 		# 错误参数: 每个请求核都要指定对应的亲和性核心
+eat --cpu-affinities 0 -c 1	# 只占用 #0 第一个核心
+eat --cpu-affinities 0,1 -c 2	# 占用 #0,1 前两个个核心
+eat --cpu-affinities 0,1,2,3 -c 100%	# 错误参数: 每个请求核都要指定对应的亲和性核心
 # Have 8C15G.
-# Error: failed to parse cpu affinities, reason: each request cpu cores need specify its affinity, aff 4 < phy 8
+# Error: failed to parse cpu affinities, reason: each request cpu cores need specify its affinity, aff 4 < req 8
 # 出错: 无法解析 CPU 亲和性, 原因: 每个请求核都要指定对应的亲和性核心, 亲和核  4 < 请求核 8
-eat --cpu-affinities 0,1,2,3 -c 50%			# 占用前4个核心
+eat --cpu-affinities 0,1,2,3 -c 50%	# 占用前4个核心
 eat --cpu-affinities 0,1,2,3,4,5,6,7 -c 92%	# 占用前8个核心 (全部7个核心，部分的最后一个核心)
 ```
 
@@ -138,9 +138,9 @@ eat --cpu-affinities 0,1,2,3,4,5,6,7 -c 92%	# 占用前8个核心 (全部7个核
 
 ```shell
 # Linux
-GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -v -o eat
+make linux-amd64 linux-arm64
 # macOs
-GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w" -v -o eat_mac
+make darwin-amd64 darwin-arm64
 # Windows
-GOOS=windwos GOARCH=amd64 go build -trimpath -ldflags "-s -w" -v -o eat_win
+make windows-amd64 windows-arm64
 ```
