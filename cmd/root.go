@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"eat/cmd/version"
 	"github.com/pbnjay/memory"
 	"github.com/spf13/cobra"
 )
@@ -24,9 +25,10 @@ func getCPUAndMemory() (uint64, uint64) {
 }
 
 var RootCmd = &cobra.Command{
-	Use:   "eat",
-	Short: "A monster that eats cpu and memory 🦕",
-	Run:   eatFunction,
+	Use:     "eat",
+	Short:   "A monster that eats cpu and memory 🦕",
+	Version: version.Version,
+	Run:     eatFunction,
 }
 
 func getConsoleHelpTips(deadline time.Duration) string {
@@ -77,6 +79,7 @@ func getRootContext(dlEat time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func eatFunction(cmd *cobra.Command, _ []string) {
+	fmt.Printf("version: %s, build time: %s, build hash: %s\n", version.Version, version.BuildTime, version.BuildHash)
 	cpuCount, memoryBytes := getCPUAndMemory()
 	fmt.Printf("Have %dC%dG.\n", cpuCount, memoryBytes/1024/1024/1024)
 
