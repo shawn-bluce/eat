@@ -18,7 +18,7 @@ Developer will encounter the need to quickly occupy CPU and memory, I am also de
 
 # Usage
 
-```shell
+```
 $ ./eat.out --help
 A monster that eats cpu and memory 🦕
 
@@ -92,12 +92,12 @@ make windows-amd64 windows-arm64
 # 使用
 
 
-```shell
+```
 $ ./eat.out --help
-我是一只吃CPU和内存的怪兽🦕
+A monster that eats cpu and memory 🦕
 
-使用方法
-    eat [flags］
+Usage:
+    eat [flags]
 
 Flags：
   --cpu-affinities 			整数	指定在几个核心上运行 Eat，多个核心索引之间用 ',' 分隔，索引从 0 开始。
