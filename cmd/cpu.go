@@ -172,6 +172,7 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 	var dynIdleDurationAdjustRatio float64 = initIdleDurationAdjustRatio
 	var stopWork = false
 	var cur float64 = 0
+	var ctxDown = false
 
 	var fixIdleDuration = func() {
 		var err error
@@ -205,7 +206,8 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 		dynIdleDurationAdjustRatio -= 0.001
 		dynIdleDurationAdjustRatio = max(minIdleDurationAdjustRatio, dynIdleDurationAdjustRatio)
 	}
-	var worker = func(idx int, workerName string, work func()) {
+	var worker = func(wg *sync.WaitGroup, idx int, workerName string, work func()) {
+		defer wg.Done()
 		cleanup, err := setCpuAffWrapper(idx, cpuAffinitiesEat)
 		if err != nil {
 			fmt.Printf("Error: %s failed to set cpu affinities, reason: %s\n", workerName, err.Error())
@@ -216,6 +218,9 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 			defer cleanup()
 		}
 		for {
+			if ctxDown {
+				return
+			}
 			if !stopWork {
 				work()
 			}
@@ -226,13 +231,16 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 		}
 	}
 	cpuIntensiveTask := GenerateCPUIntensiveTask(time.Microsecond * 2000) // 2ms is empirical data
+	wg := &sync.WaitGroup{}
 	for i := 0; i < fullCores; i++ {
+		wg.Add(1)
 		workerName := fmt.Sprintf("%d@fullCore", i)
-		go worker(i, workerName, cpuIntensiveTask)
+		go worker(wg, i, workerName, cpuIntensiveTask)
 	}
 	if partialCoreRatio > 0 {
+		wg.Add(1)
 		workerName := fmt.Sprintf("%d@partCore", fullCores)
-		go worker(fullCores, workerName, cpuIntensiveTask)
+		go worker(wg, fullCores, workerName, cpuIntensiveTask)
 	}
 	fmt.Print("\033[?25l")       // hide cursor
 	defer fmt.Print("\033[?25h") // show cursor
@@ -242,7 +250,9 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 	for {
 		select {
 		case <-ctx.Done():
+			ctxDown = true
 			fmt.Println("MaintainCpuUsage: quit due to context being cancelled")
+			wg.Wait()
 			return
 		case <-ticker.C:
 			fixIdleDuration()
