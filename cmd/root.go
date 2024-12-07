@@ -13,7 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	"eat/cmd/sysinfo"
 	"eat/cmd/version"
+
 	"github.com/pbnjay/memory"
 	"github.com/spf13/cobra"
 )
@@ -85,17 +87,22 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 
 	// Get the flags
 	c, _ := cmd.Flags().GetString("cpu-usage")
+	cMaintain, _ := cmd.Flags().GetString("cpu-maintain")
 	cAff, _ := cmd.Flags().GetIntSlice("cpu-affinities")
 	m, _ := cmd.Flags().GetString("memory-usage")
 	dl, _ := cmd.Flags().GetString("time-deadline")
 	r, _ := cmd.Flags().GetString("memory-refresh-interval")
 
-	if c == "0" && m == "0m" {
+	if c == "0" && m == "0m" && cMaintain == "" {
 		fmt.Println("Error: no cpu or memory usage specified")
 		return
 	}
+	if c == "0" && cMaintain != "" {
+		c = cMaintain
+	}
 
 	cEat := parseEatCPUCount(c)
+	cMaintainPercent := parseCPUMaintainPercent(cMaintain)
 	phyCores := runtime.NumCPU()
 	if int(math.Ceil(cEat)) > phyCores {
 		fmt.Printf("Error: user specified cpu cores exceed system physical cores(%d)\n", phyCores)
@@ -115,7 +122,11 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	defer cancel()
 	fmt.Printf("Want to eat %2.3fCPU, %s Memory\n", cEat, m)
 	eatMemory(rootCtx, &wg, mEat, mAteRenew)
-	eatCPU(rootCtx, &wg, cEat, cpuAffinitiesEat)
+	if cMaintainPercent > 0 {
+		maintainCpuUsage(rootCtx, &wg, cEat, cMaintainPercent, cpuAffinitiesEat, sysinfo.Monitor)
+	} else {
+		eatCPU(rootCtx, &wg, cEat, cpuAffinitiesEat)
+	}
 	// in case that all sub goroutines are dead due to runtime error like memory not enough.
 	// so the main goroutine automatically quit as well, don't wait user ctrl+c or context deadline.
 	go func(wgp *sync.WaitGroup) {
