@@ -172,7 +172,7 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 	var dynIdleDurationAdjustRatio float64 = initIdleDurationAdjustRatio
 	var stopWork = false
 	var cur float64 = 0
-	var ctxDown = false
+	var ctxDone = false
 
 	var fixIdleDuration = func() {
 		var err error
@@ -218,7 +218,7 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 			defer cleanup()
 		}
 		for {
-			if ctxDown {
+			if ctxDone {
 				return
 			}
 			if !stopWork {
@@ -250,7 +250,7 @@ func MaintainCpuUsage(ctx context.Context, coreNum float64, usagePercent float64
 	for {
 		select {
 		case <-ctx.Done():
-			ctxDown = true
+			ctxDone = true
 			fmt.Println("MaintainCpuUsage: quit due to context being cancelled")
 			wg.Wait()
 			return
