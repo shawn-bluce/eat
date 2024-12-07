@@ -3,11 +3,14 @@ package cmd
 import (
 	"fmt"
 	"math"
+	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"eat/cmd/cpu_affinity"
+
 	"github.com/pbnjay/memory"
 )
 
@@ -33,6 +36,28 @@ func parseEatCPUCount(c string) float64 {
 			return cEat
 		}
 	}
+}
+
+// parseCPUMaintainPercent parse cpu usage percent, return value is percent(0-100)
+func parseCPUMaintainPercent(c string) float64 {
+	if c == "" {
+		return 0
+	}
+	if !strings.HasSuffix(c, "%") {
+		fmt.Println("Error: invalid cpu maintain percent, must end with %")
+		os.Exit(1)
+	}
+	c = strings.TrimSuffix(c, "%")
+	cMaintain, err := strconv.ParseFloat(c, 32)
+	if err != nil {
+		fmt.Println("Error: invalid cpu maintain percent:", c)
+		os.Exit(1)
+	}
+	if cMaintain < 0 || cMaintain > 100 {
+		fmt.Println("Error: invalid cpu maintain percent:", cMaintain)
+		os.Exit(1)
+	}
+	return cMaintain
 }
 
 func parseEatMemoryBytes(m string) uint64 {
