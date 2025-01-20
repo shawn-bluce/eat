@@ -13,7 +13,7 @@ Developer will encounter the need to quickly occupy CPU and memory, I am also de
   - [ ] macOs
   - [ ] Windows
 - [x] Memory read/write periodically , prevent memory from being swapped out
-- [ ] Dynamic adjustment of CPU and memory usage
+- [ ] Dynamic adjustment of memory usage
 - [ ] Eat GPU
 
 # Usage
@@ -27,6 +27,7 @@ Usage:
 
 Flags:
   --cpu-affinities ints                  Which cpu core(s) would you want to eat? multiple cores separate by ','
+  --cpu-maintain string                  How many cpu would you want maintain(e.g. 50%)
   -c, --cpu-usage string                 How many cpu would you want eat (default "0")
   -h, --help                             help for eat
   -r, --memory-refresh-interval string   How often to trigger a refresh to prevent the ate memory from being swapped out (default "5m")
@@ -46,6 +47,9 @@ eat -c 2.5 -m 1.5g	# eating 2.5 CPU core and 1.5GB memory
 eat -c 3 -m 200m	# eating 3 CPU core and 200MB memory
 eat -c 100% -m 100%	# eating all CPU core and memory
 eat -c 100% -t 1h	# eating all CPU core and quit after 1hour
+
+eat --cpu-maintain 50%	# dynamic adjust to maintain minimum 50% CPU usage
+eat --cpu-maintain 50% -c 100%	# dynamic adjust to maintain minimum 50% CPU usage and use all CPU core
 
 eat --cpu-affinities 0 -c 1	# only run eat in core #0 (first core)
 eat --cpu-affinities 0,1 -c 2	# run eat in core #0,1 (first and second core)
@@ -101,6 +105,7 @@ $ ./eat.out --help
 
 Flags：
   --cpu-affinities 			整数	指定在几个核心上运行 Eat，多个核心索引之间用 ',' 分隔，索引从 0 开始。
+  --cpu-maintain 			  字符串	你想将CPU使用率维持在多少（e.g. 50%）
   -c, --cpu-usage 			字符串	你想吃掉多少个 CPU（默认为 '0'）？
   -h，--help				输出 eat 的帮助
   -r, --memory-refresh-interval 字符串	每隔多长时间触发一次刷新，以防止被吃掉的内存被交换出去（默认值为 '5m'）
@@ -120,6 +125,9 @@ eat -c 2.5 -m 1.5g	# 占用2.5个CPU核和1.5GB内存
 eat -c 3 -m 200m	# 占用3个CPU核和200MB内存
 eat -c 100% -m 100%	# 占用所有CPU核和内存
 eat -c 100% -t 1h	# 占用所有CPU核并在一小时后退出
+
+eat --cpu-maintain 50%	# 动态调整维持50%的CPU使用率
+eat --cpu-maintain 50% -c 100%	# 使用所有CPU核心动态调整维持50%的CPU使用率
 
 eat --cpu-affinities 0 -c 1	# 只占用 #0 第一个核心
 eat --cpu-affinities 0,1 -c 2	# 占用 #0,1 前两个个核心
