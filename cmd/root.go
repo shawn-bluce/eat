@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"os/signal"
@@ -16,11 +15,13 @@ import (
 	"eat/cmd/sysinfo"
 	"eat/cmd/version"
 
+	"github.com/charmbracelet/log"
 	"github.com/pbnjay/memory"
 	"github.com/spf13/cobra"
 )
 
 func getCPUAndMemory() (uint64, uint64) {
+	// Get the number of CPUs and the total memory
 	cpuCount := uint64(runtime.NumCPU())
 	memoryBytes := memory.TotalMemory()
 	return cpuCount, memoryBytes
@@ -61,7 +62,7 @@ func gracefulExit(ctx context.Context, ctxCancel context.CancelFunc) {
 }
 
 func waitUtil(ctx context.Context, wg *sync.WaitGroup, ctxCancel context.CancelFunc, deadline time.Duration) {
-	log.Println(getConsoleHelpTips(deadline))
+	log.Printf(getConsoleHelpTips(deadline) + "\n")
 	gracefulExit(ctx, ctxCancel)
 	wg.Wait()
 }
@@ -81,9 +82,9 @@ func getRootContext(dlEat time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func eatFunction(cmd *cobra.Command, _ []string) {
-	fmt.Printf("version: %s, build time: %s, build hash: %s\n", version.Version, version.BuildTime, version.BuildHash)
+	log.Infof("version: %s, build time: %s, build hash: %s\n", version.Version, version.BuildTime, version.BuildHash)
 	cpuCount, memoryBytes := getCPUAndMemory()
-	fmt.Printf("Have %dC%dG.\n", cpuCount, memoryBytes/1024/1024/1024)
+	log.Infof("Have %dC%dG.\n", cpuCount, memoryBytes/1024/1024/1024)
 
 	// Get the flags
 	c, _ := cmd.Flags().GetString("cpu-usage")
@@ -94,9 +95,13 @@ func eatFunction(cmd *cobra.Command, _ []string) {
 	r, _ := cmd.Flags().GetString("memory-refresh-interval")
 
 	if c == "0" && m == "0m" && cMaintain == "" {
-		fmt.Println("Error: no cpu or memory usage specified")
+		err := cmd.Help()
+		if err != nil {
+			log.Error("Failed to display help", "error", err)
+		}
 		return
 	}
+
 	if c == "0" && cMaintain != "" {
 		c = cMaintain
 	}
