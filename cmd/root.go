@@ -1,142 +1,55 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-	"math"
-	"os"
-	"os/signal"
-	"runtime"
-	"strings"
-	"sync"
-	"syscall"
-	"time"
-
-	"eat/cmd/sysinfo"
 	"eat/cmd/version"
-
 	"github.com/charmbracelet/log"
 	"github.com/pbnjay/memory"
 	"github.com/spf13/cobra"
+	"os"
+	"os/signal"
+	"runtime"
+	"syscall"
 )
-
-func getCPUAndMemory() (uint64, uint64) {
-	// Get the number of CPUs and the total memory
-	cpuCount := uint64(runtime.NumCPU())
-	memoryBytes := memory.TotalMemory()
-	return cpuCount, memoryBytes
-}
 
 var RootCmd = &cobra.Command{
 	Use:     "eat",
 	Short:   "A monster that eats cpu and memory 🦕",
 	Version: version.Version,
+	Example: "  eat -c 2 -m 2g\n  eat -c 50% -m 50%\n  eat -c 1.5 -m 10%",
 	Run:     eatFunction,
 }
 
-func getConsoleHelpTips(deadline time.Duration) string {
-	var helpTips = []string{"Press Ctrl + C to exit"}
-	if deadline > 0 {
-		eta := time.Now().Add(deadline)
-		helpTips = append(helpTips, fmt.Sprintf("or wait it util deadline %s", eta.Format(time.DateTime)))
-	}
-	helpTips = append(helpTips, "...")
-	return strings.Join(helpTips, " ")
+func displaySystemInfo() {
+	log.Infof("This system has %d CPUs and %d bytes memory (%dC%dG)", runtime.NumCPU(), memory.TotalMemory(), runtime.NumCPU(), memory.TotalMemory()/1024/1024/1024)
 }
 
-func gracefulExit(ctx context.Context, ctxCancel context.CancelFunc) {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case sig := <-sigs:
-			log.Printf("\nReceive exit signal: %v\n", sig)
-			ctxCancel()
-			return
-		default:
-			time.Sleep(durationEachSignCheck)
-		}
-	}
-}
+func waiting4exit() {
+	sigChan := make(chan os.Signal, 1)
 
-func waitUtil(ctx context.Context, wg *sync.WaitGroup, ctxCancel context.CancelFunc, deadline time.Duration) {
-	log.Printf(getConsoleHelpTips(deadline) + "\n")
-	gracefulExit(ctx, ctxCancel)
-	wg.Wait()
-}
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-func getRootContext(dlEat time.Duration) (context.Context, context.CancelFunc) {
-	var (
-		cancel  context.CancelFunc
-		rootCtx context.Context
-	)
-	if dlEat > 0 {
-		deadline := time.Now().Add(dlEat)
-		rootCtx, cancel = context.WithDeadline(context.Background(), deadline)
-	} else {
-		rootCtx, cancel = context.WithCancel(context.Background())
-	}
-	return rootCtx, cancel
+	sig := <-sigChan
+
+	log.Infof("receive signal %v, will exit...", sig)
+	os.Exit(0)
 }
 
 func eatFunction(cmd *cobra.Command, _ []string) {
-	log.Infof("version: %s, build time: %s, build hash: %s\n", version.Version, version.BuildTime, version.BuildHash)
-	cpuCount, memoryBytes := getCPUAndMemory()
-	log.Infof("Have %dC%dG.\n", cpuCount, memoryBytes/1024/1024/1024)
+	c, _ := cmd.Flags().GetString("cpu")
+	m, _ := cmd.Flags().GetString("memory")
 
-	// Get the flags
-	c, _ := cmd.Flags().GetString("cpu-usage")
-	cMaintain, _ := cmd.Flags().GetString("cpu-maintain")
-	cAff, _ := cmd.Flags().GetIntSlice("cpu-affinities")
-	m, _ := cmd.Flags().GetString("memory-usage")
-	dl, _ := cmd.Flags().GetString("time-deadline")
-	r, _ := cmd.Flags().GetString("memory-refresh-interval")
-
-	if c == "0" && m == "0m" && cMaintain == "" {
-		err := cmd.Help()
-		if err != nil {
-			log.Error("Failed to display help", "error", err)
-		}
+	if c == "0" && m == "0m" {
+		_ = cmd.Help()
 		return
 	}
 
-	if c == "0" && cMaintain != "" {
-		c = cMaintain
-	}
-
-	cEat := parseEatCPUCount(c)
-	cMaintainPercent := parseCPUMaintainPercent(cMaintain)
-	phyCores := runtime.NumCPU()
-	if int(math.Ceil(cEat)) > phyCores {
-		fmt.Printf("Error: user specified cpu cores exceed system physical cores(%d)\n", phyCores)
-		return
-	}
-	mEat := parseEatMemoryBytes(m)
-	dlEat := parseTimeDuration(dl)
-	mAteRenew := parseTimeDuration(r)
-	cpuAffinitiesEat, err := parseCpuAffinity(cAff, cEat)
-	if err != nil {
-		fmt.Printf("Error: failed to parse cpu affinities, reason: %s\n", err.Error())
-		return
-	}
-
-	var wg sync.WaitGroup
-	rootCtx, cancel := getRootContext(dlEat)
-	defer cancel()
-	fmt.Printf("Want to eat %2.3fCPU, %s Memory\n", cEat, m)
-	eatMemory(rootCtx, &wg, mEat, mAteRenew)
-	if cMaintainPercent > 0 {
-		maintainCpuUsage(rootCtx, &wg, cEat, cMaintainPercent, cpuAffinitiesEat, sysinfo.Monitor)
-	} else {
-		eatCPU(rootCtx, &wg, cEat, cpuAffinitiesEat)
-	}
-	// in case that all sub goroutines are dead due to runtime error like memory not enough.
-	// so the main goroutine automatically quit as well, don't wait user ctrl+c or context deadline.
-	go func(wgp *sync.WaitGroup) {
-		wgp.Wait()
-		cancel()
-	}(&wg)
-	waitUtil(rootCtx, &wg, cancel, dlEat)
+	log.Infof("version: %s, build time: %s, build hash: %s", version.Version, version.BuildTime, version.BuildHash)
+	displaySystemInfo()
+	eatCpuCount := parserCPUEatCount(c)
+	eatMemoryCount := parserMemory(m)
+	log.Infof("Will eating %2.3f CPU cores and %d bytes memory", eatCpuCount, eatMemoryCount)
+	eatCPU(eatCpuCount)
+	eatMemory(eatMemoryCount)
+	log.Infof("This monster is eating %2.3f CPU cores and %d bytes memory", eatCpuCount, eatMemoryCount)
+	waiting4exit()
 }
