@@ -1,139 +1,78 @@
 package cmd
 
 import (
-	"fmt"
-	"math"
-	"os"
+	"github.com/shirou/gopsutil/v4/mem"
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
-
-	"eat/cmd/cpu_affinity"
-
-	"github.com/pbnjay/memory"
 )
 
-func parseEatCPUCount(c string) float64 {
-	if c == "100%" {
-		return float64(runtime.NumCPU())
-	} else {
-		if len(c) > 1 && (c[len(c)-1] == '%') {
-			cEat, err := strconv.ParseFloat(c[:len(c)-1], 32)
-			if err != nil {
-				fmt.Println("Error: invalid cpu count")
-				return 0
-			} else {
-				return cEat / 100 * float64(runtime.NumCPU())
-			}
-		}
+func parserCPUEatCount(cpuArg string) float64 {
+	totalCPUCount := float64(runtime.NumCPU())
 
-		cEat, err := strconv.ParseFloat(c, 32)
-		if err != nil {
-			fmt.Println("Error: invalid cpu count")
-			return 0
-		} else {
-			return cEat
-		}
-	}
-}
-
-// parseCPUMaintainPercent parse cpu usage percent, return value is percent(0-100)
-func parseCPUMaintainPercent(c string) float64 {
-	if c == "" {
+	if cpuArg == "" {
 		return 0
 	}
-	if !strings.HasSuffix(c, "%") {
-		fmt.Println("Error: invalid cpu maintain percent, must end with %")
-		os.Exit(1)
-	}
-	c = strings.TrimSuffix(c, "%")
-	cMaintain, err := strconv.ParseFloat(c, 32)
-	if err != nil {
-		fmt.Println("Error: invalid cpu maintain percent:", c)
-		os.Exit(1)
-	}
-	if cMaintain < 0 || cMaintain > 100 {
-		fmt.Println("Error: invalid cpu maintain percent:", cMaintain)
-		os.Exit(1)
-	}
-	return cMaintain
-}
 
-func parseEatMemoryBytes(m string) uint64 {
-	// allow g/G, m/M, k/K suffixes
-	// 1G = 1024M = 1048576K
-	if m == "100%" {
-		return memory.TotalMemory()
+	if strings.HasSuffix(cpuArg, "%") {
+		percentStr := strings.TrimSuffix(cpuArg, "%")
+		parsedVal, err := strconv.ParseFloat(percentStr, 64)
+		if err != nil {
+			return 0
+		}
+		return (parsedVal / 100.0) * totalCPUCount
 	} else {
-		// process k, m, g suffixes
-		if len(m) > 1 && (m[len(m)-1] == 'g' || m[len(m)-1] == 'G') {
-			mEatBytes, err := strconv.ParseUint(m[:len(m)-1], 10, 64)
-			if err == nil {
-				return mEatBytes * 1024 * 1024 * 1024
-			}
+		parsedVal, err := strconv.ParseFloat(cpuArg, 64)
+		if err != nil {
+			return 0
 		}
-		if len(m) > 1 && (m[len(m)-1] == 'm' || m[len(m)-1] == 'M') {
-			mEatBytes, err := strconv.ParseUint(m[:len(m)-1], 10, 64)
-			if err == nil {
-				return mEatBytes * 1024 * 1024
-			}
-		}
-		if len(m) > 1 && (m[len(m)-1] == 'k' || m[len(m)-1] == 'K') {
-			mEatBytes, err := strconv.ParseUint(m[:len(m)-1], 10, 64)
-			if err == nil {
-				return mEatBytes * 1024
-			}
-		}
-
-		// process percent
-		if len(m) > 1 && m[len(m)-1] == '%' {
-			mEatPercent, err := strconv.ParseFloat(m[:len(m)-1], 32)
-			if err == nil {
-				return uint64(float64(memory.TotalMemory()) * mEatPercent / 100)
-			}
-		}
+		return parsedVal
 	}
-	return 0
 }
 
-func parseTimeDuration(eta string) time.Duration {
-	duration, err := time.ParseDuration(eta)
-	if err != nil {
-		return time.Duration(0)
+func parserMemory(memArg string) uint64 {
+	if memArg == "" {
+		return 0
 	}
-	if duration <= 0 {
-		return time.Duration(0)
-	}
-	return duration
-}
+	if strings.HasSuffix(memArg, "%") {
+		percentStr := strings.TrimSuffix(memArg, "%")
+		percentage, err := strconv.ParseFloat(percentStr, 64)
+		if err != nil {
+			return 0
+		}
+		vmStat, err := mem.VirtualMemory()
+		if err != nil {
+			return 0
+		}
+		totalMemory := float64(vmStat.Total)
+		return uint64((percentage / 100.0) * totalMemory)
+	} else {
+		memArgLower := strings.ToLower(memArg)
 
-// parseCpuAffinity validate cpu cores and check it cover request cores
-func parseCpuAffinity(affCores []int, needCores float64) ([]uint, error) {
-	if len(affCores) == 0 { // user don't set cpu affinity, skip
-		return nil, nil
-	}
-	var cpuAffDeputy = cpu_affinity.NewCpuAffinityDeputy()
-	if !cpuAffDeputy.IsImplemented() {
-		return nil, fmt.Errorf("SetCpuAffinities currently not support in this os: %s", runtime.GOOS)
-	}
-	numCpu := runtime.NumCPU()
-	var validCpuAffList []uint
-	for _, cpu := range affCores {
-		if cpu < 0 {
-			continue
+		multiplier := float64(1)
+		var numericPart string
+
+		lastChar := memArgLower[len(memArgLower)-1]
+		switch lastChar {
+		case 'b':
+			numericPart = memArgLower[:len(memArgLower)-1]
+		case 'k':
+			multiplier = 1024
+			numericPart = memArgLower[:len(memArgLower)-1]
+		case 'm':
+			multiplier = 1024 * 1024
+			numericPart = memArgLower[:len(memArgLower)-1]
+		case 'g':
+			multiplier = 1024 * 1024 * 1024
+			numericPart = memArgLower[:len(memArgLower)-1]
+		default:
+			numericPart = memArgLower
 		}
-		if cpu >= numCpu {
-			continue
+
+		value, err := strconv.ParseFloat(numericPart, 64)
+		if err != nil {
+			return 0
 		}
-		validCpuAffList = append(validCpuAffList, uint(cpu))
+		return uint64(value * multiplier)
 	}
-	fullCores := int(math.Ceil(needCores))
-	if len(validCpuAffList) < fullCores {
-		return nil, fmt.Errorf(
-			"each request cpu cores need specify its affinity, aff %d < req %d",
-			len(validCpuAffList), fullCores,
-		)
-	}
-	return validCpuAffList, nil
 }
