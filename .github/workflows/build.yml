@@ -1,0 +1,130 @@
+name: Build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        jobs:
+          - { goos: darwin, goarch: arm64, output: arm64 }
+          - { goos: darwin, goarch: amd64, output: amd64 }
+          - { goos: linux, goarch: arm64, output: arm64 }
+          - { goos: linux, goarch: amd64, output: amd64 }
+
+    steps:
+      -
+        uses: actions/checkout@v4
+
+      -
+        name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      -
+        name: Set variables
+        run: |
+          echo "BUILDTIME=$(date)" >> $GITHUB_ENV
+          echo "CGO_ENABLED=0" >> $GITHUB_ENV
+          echo "BUILDHASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "BUILDTAG=-extldflags '-static'" >> $GITHUB_ENV
+          echo "VERSION=$(date +'%Y-%m-%d')-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        shell: bash
+
+      -
+        name: Test
+        run: |
+          go test ./...
+
+      -
+        name: Build
+        env:
+          GOOS: ${{matrix.jobs.goos}}
+          GOARCH: ${{matrix.jobs.goarch}}
+        run: |
+          echo $CGO_ENABLED
+          go build -v -trimpath -ldflags "${BUILDTAG} -X 'eat/cmd/version.BuildHash=${BUILDHASH}' -X 'eat/cmd/version.BuildTime=${BUILDTIME}' -w -s -buildid=" -o eat.out
+
+      -
+        name: Package binary
+        run: |
+          if [ "${{matrix.jobs.goos}}" = "windows" ]; then
+            mv eat.out eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
+            zip -r eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.zip eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
+          else
+            mv eat.out eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}
+            gzip -c eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}} > eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.gz
+          fi
+
+      -
+        name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eat-${{ matrix.jobs.goos }}-${{ matrix.jobs.output }}
+          path: |
+            eat*.gz
+            eat*.zip
+
+  create_release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    permissions: write-all
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: '0'
+
+      -
+        name: Set version
+        run: |
+          echo "VERSION=$(date +'%Y-%m-%d')-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "BUILD_TIME=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
+          echo "FULL_COMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      -
+        name: Create tag
+        run: |
+          git tag -f ${{ env.VERSION }}
+          git push origin ${{ env.VERSION }} --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      -
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      -
+        name: Display structure of downloaded files
+        run: ls -R
+        working-directory: dist/
+
+      -
+        name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          files: dist/*
+          body: |
+            ## ${{ env.VERSION }}
+
+            **构建时间**: ${{ env.BUILD_TIME }}
+            **Commit**: ${{ env.FULL_COMMIT }}
+
+            ### 下载说明
+
+            - macOS arm64: 适用于 Apple Silicon (M1/M2/M3)
+            - macOS amd64: 适用于 Intel Mac
+            - Linux arm64: 适用于 ARM64 Linux 系统
+            - Linux amd64: 适用于 x86_64 Linux 系统
