@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"testing"
 )
@@ -11,6 +12,9 @@ func TestParserRejectsUnsafeValues(t *testing.T) {
 		if _, err := parserCPUEatCount(value); err == nil {
 			t.Errorf("parserCPUEatCount(%q) accepted unsafe value", value)
 		}
+	}
+	if _, err := parserCPUEatCount(fmt.Sprintf("%d", runtime.NumCPU()+1)); err == nil {
+		t.Fatal("parserCPUEatCount accepted more CPUs than the device has")
 	}
 	for _, value := range []string{"Inf", "-1m", "101%", "20xyz"} {
 		if _, err := parserMemory(value); err == nil {

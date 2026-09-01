@@ -5,7 +5,7 @@ import (
 	"eat/cmd/version"
 	"fmt"
 	"github.com/charmbracelet/log"
-	"github.com/pbnjay/memory"
+	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
@@ -22,7 +22,12 @@ var RootCmd = &cobra.Command{
 }
 
 func displaySystemInfo() {
-	log.Infof("This system has %d CPUs and %d bytes memory (%dC%dG)", runtime.NumCPU(), memory.TotalMemory(), runtime.NumCPU(), memory.TotalMemory()/1024/1024/1024)
+	vm, err := mem.VirtualMemory()
+	if err != nil {
+		fmt.Printf("Unable to read total memory: %v\n", err)
+		return
+	}
+	fmt.Printf("\nThis system has %d logical CPUs and %.2fG physical memory\n\n", runtime.NumCPU(), float64(vm.Total)/(1024*1024*1024))
 }
 
 func eatFunction(cmd *cobra.Command, _ []string) error {
@@ -36,7 +41,9 @@ func eatFunction(cmd *cobra.Command, _ []string) error {
 	}
 
 	if c == "0" && m == "0m" {
-		_ = cmd.Help()
+		fmt.Println(cmd.Short)
+		displaySystemInfo()
+		fmt.Print(cmd.UsageString())
 		return nil
 	}
 
@@ -49,6 +56,13 @@ func eatFunction(cmd *cobra.Command, _ []string) error {
 	eatMemoryCount, err := parserMemory(m)
 	if err != nil {
 		return err
+	}
+	vm, err := mem.VirtualMemory()
+	if err != nil {
+		return fmt.Errorf("cannot read device memory specification: %w", err)
+	}
+	if eatMemoryCount > vm.Total {
+		return fmt.Errorf("requested memory %d bytes exceeds device total memory %d bytes", eatMemoryCount, vm.Total)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
