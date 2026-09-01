@@ -1,10 +1,14 @@
 package sysinfo
 
 import (
+	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type SystemResourceMonitor interface {
@@ -43,6 +47,7 @@ func NewGopsutilMonitor(refreshInterval time.Duration) *GopsutilMonitor {
 }
 
 type GopsutilCpuMonitor struct {
+	mu                sync.Mutex
 	cpuUsage          float64
 	latestRefreshTime time.Time
 	refreshInterval   time.Duration
@@ -55,16 +60,18 @@ func NewGopsutilCpuMonitor(refreshInterval time.Duration) *GopsutilCpuMonitor {
 }
 
 func (m *GopsutilCpuMonitor) Refresh() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	cpuUsage, err := cpu.Percent(time.Millisecond*1000, false)
 	if err != nil {
 		return err
 	}
+	m.cpuUsage = cpuUsage[0]
 	if runtime.GOOS == "windows" {
 		// The gopsutil library returns a CPU usage rate that is 10% lower than the actual usage rate on Windows.
 		// see: https://github.com/shirou/gopsutil/issues/1744
 		m.cpuUsage += 8
 	}
-	m.cpuUsage = cpuUsage[0]
 	if m.cpuUsage > 100 {
 		m.cpuUsage = 100
 	}
@@ -78,7 +85,10 @@ func (m *GopsutilCpuMonitor) Refresh() error {
 }
 
 func (m *GopsutilCpuMonitor) refresh() error {
-	if time.Since(m.latestRefreshTime) < m.refreshInterval {
+	m.mu.Lock()
+	last := m.latestRefreshTime
+	m.mu.Unlock()
+	if time.Since(last) < m.refreshInterval {
 		return nil
 	}
 	return m.Refresh()
@@ -89,10 +99,11 @@ func (m *GopsutilCpuMonitor) GetCPUUsage() (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.cpuUsage, nil
 }
 
-// TODO: implement SystemMemoryMonitor
 type GopsutilMemoryMonitor struct {
 	// totalMemory          uint64
 	// freeMemory           uint64
@@ -108,13 +119,29 @@ func NewGopsutilMemoryMonitor(refreshInterval time.Duration) *GopsutilMemoryMoni
 }
 
 func (m *GopsutilMemoryMonitor) GetTotalMemory() (uint64, error) {
-	panic("not implemented")
+	v, err := mem.VirtualMemory()
+	if err != nil {
+		return 0, err
+	}
+	return v.Total, nil
 }
 
 func (m *GopsutilMemoryMonitor) GetFreeMemory() (uint64, error) {
-	panic("not implemented")
+	v, err := mem.VirtualMemory()
+	if err != nil {
+		return 0, err
+	}
+	return v.Free, nil
 }
 
 func (m *GopsutilMemoryMonitor) GetCurrentProcessMemory() (uint64, error) {
-	panic("not implemented")
+	p, err := process.NewProcess(int32(os.Getpid()))
+	if err != nil {
+		return 0, err
+	}
+	v, err := p.MemoryInfo()
+	if err != nil {
+		return 0, err
+	}
+	return v.RSS, nil
 }
