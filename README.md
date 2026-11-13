@@ -22,6 +22,23 @@ eat -c 3 -m 200m	# eating 3 CPU cores and 200MB memory
 eat -c 100% -m 100%	# eating all CPU cores and memory
 ```
 
+## Dynamic mode / 动态模式
+
+加上 `-d/--dynamic` 后，`-c`/`-m` 表示整机要维持的使用率，而不是 eat 自己占多少。其他进程用得多，eat 就少占；用得少，eat 就多占；其他进程已经超过目标时 eat 不再占用。
+
+With `-d/--dynamic`, `-c`/`-m` set the usage level of the whole machine instead of a fixed amount for eat. eat adjusts itself every second as other processes come and go.
+
+```shell
+eat -c 70% -m 60% -d	# keep the whole machine at 70% CPU and 60% memory
+eat -c 70% -d		# keep CPU at 70%, leave memory alone
+eat -c 4 -m 8g -d	# absolute values are converted to shares of the machine
+```
+
+> - CPU 每秒采样一次，几秒内收敛到目标附近。
+> - 内存以 32MB 为单位增减，稳定在目标值下方一个单位以内；始终保留至少 2%（不少于 64MB）的空闲内存，避免触发 OOM。
+> - 在 Linux cgroup（容器）里有内存上限时，按 cgroup 的上限和用量计算。
+> - 动态模式每 5 秒打印一行整机和 eat 自身的 CPU、内存占用。
+
 > Tips:
 > - Use `<Ctrl> + C` to stop program and release CPU and memory
 
