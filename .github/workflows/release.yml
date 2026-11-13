@@ -1,13 +1,17 @@
 name: Release
 on:
   push:
-    branches:
-      - master
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Tag version to release"
-        required: false
+        description: "Tag to create and release, e.g. v0.2.0"
+        required: true
+
+env:
+  # Pushing a tag releases that tag; a manual run creates the given tag.
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
 
 permissions:
   contents: write
@@ -34,8 +38,6 @@ jobs:
     steps:
       -
         uses: actions/checkout@v4
-        with:
-          ref: master
 
       -
         name: Set up Go
@@ -50,16 +52,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.jobs.goversion }}
-
-      -
-        name: Set release variables
-        run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
-          else
-            echo "VERSION=v0.1.3-build.${{ github.run_number }}" >> "$GITHUB_ENV"
-          fi
-        shell: bash
 
       -
         name: Set Runtime Variable
@@ -120,19 +112,8 @@ jobs:
         name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: master
           fetch-depth: '0'
           fetch-tags: 'true'
-
-      -
-        name: Set release variables
-        run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_ENV"
-          else
-            echo "VERSION=v0.1.3-build.${{ github.run_number }}" >> "$GITHUB_ENV"
-          fi
-        shell: bash
 
       -
         uses: actions/download-artifact@v4

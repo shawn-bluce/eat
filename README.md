@@ -52,3 +52,14 @@ make darwin-amd64 darwin-arm64
 # Windows
 make windows-amd64 windows-arm64
 ```
+
+# Release
+
+推送 `v` 开头的 tag 即触发 GitHub Actions 构建并发布 Release；也可以在 Actions 页面手动运行 Release 并填写要创建的 tag。
+
+Push a tag starting with `v` to build and publish a GitHub Release, or run the Release workflow manually with the tag to create.
+
+```shell
+git tag v0.2.0
+git push origin v0.2.0
+```
