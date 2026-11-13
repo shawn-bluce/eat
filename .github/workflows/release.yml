@@ -85,7 +85,7 @@ jobs:
           GOMIPS: ${{matrix.jobs.mips}}
         run: |
           echo $CGO_ENABLED
-          go build -v -trimpath -ldflags "${BUILDTAG} -X 'eat/cmd/version.BuildHash=$(BUILDHASH)' -X 'eat/cmd/version.BuildTime=$(BUILDTIME)' -w -s -buildid=" -o eat.out
+          go build -v -trimpath -ldflags "${BUILDTAG} -X 'eat/cmd/version.Version=${VERSION#v}' -X 'eat/cmd/version.BuildHash=${BUILDHASH}' -X 'eat/cmd/version.BuildTime=${BUILDTIME}' -w -s -buildid=" -o eat.out
           if [ "${{matrix.jobs.goos}}" = "windows" ]; then
             mv eat.out eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe
             zip -r eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.zip eat-${{matrix.jobs.goos}}-${{matrix.jobs.output}}.exe

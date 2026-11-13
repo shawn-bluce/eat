@@ -8,12 +8,15 @@ else ifeq ($(BRANCH),) # checkout to specific tag
 else # other branch
 	BUILD_TAG=$(shell git rev-parse HEAD)
 endif
+VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null)
+VERSION:=$(patsubst v%,%,$(VERSION))
 CURRENT_OS=$(shell go env GOOS)
 CURRENT_ARCH=$(shell go env GOARCH)
 CURRENT_TARGET=$(CURRENT_OS)-$(CURRENT_ARCH)
 
 BUILD_TIME=$(shell date -Iseconds --utc)
-GO_BUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "eat/cmd/version.BuildHash=$(BUILD_TAG)" \
+GO_BUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "eat/cmd/version.Version=$(VERSION)" \
+													-X "eat/cmd/version.BuildHash=$(BUILD_TAG)" \
 													-X "eat/cmd/version.BuildTime=$(BUILD_TIME)" \
 													-w -s -buildid='
 
