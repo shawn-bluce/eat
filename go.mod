@@ -4,10 +4,8 @@ go 1.22
 
 require (
 	github.com/charmbracelet/log v0.4.1
-	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
 	github.com/shirou/gopsutil/v4 v4.24.11
 	github.com/spf13/cobra v1.8.1
-	golang.org/x/sys v0.30.0
 )
 
 require (
@@ -29,4 +27,5 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )

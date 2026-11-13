@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+// intervalCpuWorkerCheckContextDone is how many iterations a full-core worker
+// spins between checks for cancellation.
+const intervalCpuWorkerCheckContextDone = 10000
+
 func eatCPU(ctx context.Context, c float64) func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Info("Starting to eat CPU...")

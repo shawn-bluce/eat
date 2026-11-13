@@ -88,7 +88,7 @@ func systemMemory() (used, total uint64, err error) {
 	return vm.Total - vm.Available, vm.Total, nil
 }
 
-func eatMemory(ctx context.Context, memoryBytes uint64) (wait func(), err error) {
+func eatMemory(ctx context.Context, memoryBytes uint64) (func(), error) {
 	if memoryBytes == 0 {
 		return func() {}, nil
 	}
@@ -102,13 +102,6 @@ func eatMemory(ctx context.Context, memoryBytes uint64) (wait func(), err error)
 	log.Info("Starting to eat memory...")
 
 	var chunks []memoryChunk
-	defer func() {
-		if r := recover(); r != nil {
-			chunks = nil
-			wait = nil
-			err = fmt.Errorf("allocation failed: %v", r)
-		}
-	}()
 	for remaining := memoryBytes; remaining > 0; {
 		select {
 		case <-ctx.Done():
