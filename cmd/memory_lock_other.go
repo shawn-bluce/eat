@@ -5,6 +5,8 @@ package cmd
 func lockMemory([]byte) error   { return errMemoryLockUnsupported{} }
 func unlockMemory([]byte) error { return nil }
 
+const memoryLockHint = ""
+
 type errMemoryLockUnsupported struct{}
 
 func (errMemoryLockUnsupported) Error() string {

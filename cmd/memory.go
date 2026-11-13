@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/log"
 	"github.com/shirou/gopsutil/v4/mem"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,11 +26,21 @@ func allocateChunk(size uint64) memoryChunk {
 	c := memoryChunk{buf: make([]byte, size)}
 	touchPages(c.buf)
 	if err := lockMemory(c.buf); err != nil {
-		log.Warn("Failed to lock memory, the memory may be swapped out by OS.")
+		warnLockFailure(err)
 	} else {
 		c.locked = true
 	}
 	return c
+}
+
+// lockWarned makes sure a failing mlock is reported once instead of once
+// per chunk, which would print hundreds of lines when eating gigabytes.
+var lockWarned atomic.Bool
+
+func warnLockFailure(err error) {
+	if lockWarned.CompareAndSwap(false, true) {
+		log.Warnf("Cannot lock memory in RAM (%v), so it may be swapped out by the OS. %s", err, memoryLockHint)
+	}
 }
 
 func (c memoryChunk) free() {
