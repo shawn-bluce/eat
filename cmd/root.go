@@ -81,10 +81,12 @@ func eatFunction(cmd *cobra.Command, _ []string) error {
 	}
 	waitCPU := eatCPU(ctx, eatCpuCount)
 	log.Infof("This monster is eating %2.3f CPU cores and %d bytes memory", eatCpuCount, eatMemoryCount)
+	waitStatus := reportStatus(ctx, statusInterval)
 	<-ctx.Done()
 	log.Infof("receive signal, will exit...")
 	waitCPU()
 	waitMemory()
+	waitStatus()
 	return nil
 }
 

@@ -37,10 +37,10 @@ eat -c 4 -m 8g -d	# absolute values are converted to shares of the machine
 > - CPU 每秒采样一次，几秒内收敛到目标附近。
 > - 内存以 32MB 为单位增减，稳定在目标值下方一个单位以内；始终保留至少 2%（不少于 64MB）的空闲内存，避免触发 OOM。
 > - 在 Linux cgroup（容器）里有内存上限时，按 cgroup 的上限和用量计算。
-> - 动态模式每 5 秒打印一行整机和 eat 自身的 CPU、内存占用。
 
 > Tips:
 > - Use `<Ctrl> + C` to stop program and release CPU and memory
+> - While running, eat logs the CPU and memory usage of the whole system and of itself every 5 seconds
 
 # Build
 
