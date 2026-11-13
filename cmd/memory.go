@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	memoryChunkSize         = 32 * 1024 * 1024
-	memoryPageStride        = 4096
-	memoryKeepAliveInterval = 50 * time.Millisecond
+	memoryChunkSize  = 32 * 1024 * 1024
+	memoryPageStride = 4096
+	// memoryKeepAliveInterval is how often pages that could not be locked are
+	// rewritten to keep them from being swapped out. Rewriting is linear in
+	// the memory held, so doing it too often burns noticeable CPU.
+	memoryKeepAliveInterval = 10 * time.Second
 )
 
 // memoryChunk is a block of memory held by eat. Every page of it is backed by
@@ -56,9 +59,13 @@ func touchPages(buf []byte) {
 	}
 }
 
+// keepChunksAlive rewrites the pages of chunks that are not locked. Locked
+// chunks are pinned in RAM by the OS and need no help.
 func keepChunksAlive(chunks []memoryChunk) {
 	for _, c := range chunks {
-		touchPages(c.buf)
+		if !c.locked {
+			touchPages(c.buf)
+		}
 	}
 }
 
