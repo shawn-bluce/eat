@@ -43,7 +43,7 @@ var lockWarned atomic.Bool
 
 func warnLockFailure(err error) {
 	if lockWarned.CompareAndSwap(false, true) {
-		log.Warnf("Cannot lock memory in RAM (%v), so it may be swapped out by the OS. %s", err, memoryLockHint)
+		log.Warnf("Cannot lock memory in RAM, so the OS may swap it out: %v", err)
 	}
 }
 

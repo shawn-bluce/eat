@@ -1,10 +1,17 @@
-//go:build linux || darwin || freebsd
+//go:build linux || darwin
 
 package cmd
 
-import "syscall"
+import (
+	"fmt"
+	"syscall"
+)
 
-func lockMemory(buf []byte) error   { return syscall.Mlock(buf) }
+func lockMemory(buf []byte) error {
+	if err := syscall.Mlock(buf); err != nil {
+		return fmt.Errorf("%w; run eat as root or raise the limit with `ulimit -l` to lock it", err)
+	}
+	return nil
+}
+
 func unlockMemory(buf []byte) error { return syscall.Munlock(buf) }
-
-const memoryLockHint = "To lock it, run eat as root or raise the limit with `ulimit -l`."
