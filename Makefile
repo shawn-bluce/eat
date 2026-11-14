@@ -1,56 +1,29 @@
-NAME=eat
-BIN_DIR=$(shell mkdir -p dist; echo 'dist')
-BRANCH=$(shell git branch --show-current)
-ifeq ($(BRANCH),master) # master production branch
-	BUILD_TAG=master-$(shell git rev-parse HEAD)
-else ifeq ($(BRANCH),) # checkout to specific tag
-	BUILD_TAG=$(shell git describe --tags)
-else # other branch
-	BUILD_TAG=$(shell git rev-parse HEAD)
-endif
-VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null)
-VERSION:=$(patsubst v%,%,$(VERSION))
-CURRENT_OS=$(shell go env GOOS)
-CURRENT_ARCH=$(shell go env GOARCH)
-CURRENT_TARGET=$(CURRENT_OS)-$(CURRENT_ARCH)
+NAME      := eat
+PLATFORMS := linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64
 
-BUILD_TIME=$(shell date -Iseconds --utc)
-GO_BUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "eat/cmd/version.Version=$(VERSION)" \
-													-X "eat/cmd/version.BuildHash=$(BUILD_TAG)" \
-													-X "eat/cmd/version.BuildTime=$(BUILD_TIME)" \
-													-w -s -buildid='
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -s -w -buildid= \
+	-X eat/cmd/version.Version=$(patsubst v%,%,$(VERSION)) \
+	-X eat/cmd/version.BuildHash=$(shell git rev-parse HEAD 2>/dev/null) \
+	-X eat/cmd/version.BuildTime=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+GO_BUILD := CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)'
 
-.PHONY: all clean default darwin-amd64 darwin-arm64 linux-amd64 linux-arm64 freebsd-amd64 freebsd-arm64 windows-amd64 windows-arm64
+.PHONY: build all test clean $(PLATFORMS)
 
-default:
-	@echo "Building for current system: $(CURRENT_TARGET)"
-	@make $(CURRENT_TARGET)
+# Build for the current system: dist/eat
+build:
+	$(GO_BUILD) -o dist/$(NAME) .
 
-all: linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64
+# Build for every supported platform: dist/eat-<os>-<arch>[.exe]
+all: $(PLATFORMS)
 
-darwin-amd64:
-	GOARCH=amd64 GOOS=darwin GOAMD64=v3 $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@
+$(PLATFORMS):
+	GOOS=$(word 1,$(subst -, ,$@)) GOARCH=$(word 2,$(subst -, ,$@)) \
+		$(GO_BUILD) -o dist/$(NAME)-$@$(if $(findstring windows,$@),.exe) .
 
-darwin-arm64:
-	GOARCH=arm64 GOOS=darwin $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@
-
-linux-amd64:
-	GOARCH=amd64 GOOS=linux GOAMD64=v3 $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@
-
-linux-arm64:
-	GOARCH=arm64 GOOS=linux $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@
-
-freebsd-amd64:
-	GOARCH=amd64 GOOS=freebsd GOAMD64=v3 $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@
-
-freebsd-arm64:
-	GOARCH=arm64 GOOS=freebsd $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@
-
-windows-amd64:
-	GOARCH=amd64 GOOS=windows GOAMD64=v3 $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@.exe
-
-windows-arm64:
-	GOARCH=arm64 GOOS=windows $(GO_BUILD) -o $(BIN_DIR)/$(NAME)-$@.exe
+test:
+	go vet ./...
+	go test ./...
 
 clean:
-	rm -f $(BIN_DIR)/*
+	rm -rf dist
