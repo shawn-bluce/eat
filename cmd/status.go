@@ -16,18 +16,17 @@ const statusInterval = 5 * time.Second
 // reportStatus logs the CPU and memory usage of the whole system and of eat
 // itself every interval until ctx is done.
 func reportStatus(ctx context.Context, interval time.Duration) func() {
-	done := make(chan struct{})
 	self, err := process.NewProcess(int32(os.Getpid()))
 	if err != nil {
 		log.Warnf("Cannot inspect own process, status disabled: %v", err)
-		close(done)
-		return func() { <-done }
+		return func() {}
 	}
 	// Prime the "since last call" CPU counters so the first report covers
 	// the first interval rather than the time since startup.
 	_, _ = cpu.Percent(0, false)
 	_, _ = self.Percent(0)
 
+	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		ticker := time.NewTicker(interval)

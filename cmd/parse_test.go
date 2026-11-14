@@ -9,26 +9,26 @@ import (
 
 func TestParserRejectsUnsafeValues(t *testing.T) {
 	for _, value := range []string{"Inf", "-1", "101%", "bad"} {
-		if _, err := parserCPUEatCount(value); err == nil {
-			t.Errorf("parserCPUEatCount(%q) accepted unsafe value", value)
+		if _, err := parseCPU(value); err == nil {
+			t.Errorf("parseCPU(%q) accepted unsafe value", value)
 		}
 	}
-	if _, err := parserCPUEatCount(fmt.Sprintf("%d", runtime.NumCPU()+1)); err == nil {
-		t.Fatal("parserCPUEatCount accepted more CPUs than the device has")
+	if _, err := parseCPU(fmt.Sprintf("%d", runtime.NumCPU()+1)); err == nil {
+		t.Fatal("parseCPU accepted more CPUs than the device has")
 	}
 	for _, value := range []string{"Inf", "-1m", "101%", "20xyz"} {
-		if _, err := parserMemory(value); err == nil {
-			t.Errorf("parserMemory(%q) accepted unsafe value", value)
+		if _, err := parseMemory(value); err == nil {
+			t.Errorf("parseMemory(%q) accepted unsafe value", value)
 		}
 	}
 }
 
 func TestParserAcceptsSmallValues(t *testing.T) {
-	cpu, err := parserCPUEatCount("0.5")
+	cpu, err := parseCPU("0.5")
 	if err != nil || cpu != 0.5 {
 		t.Fatalf("unexpected CPU parse result: %v, %v", cpu, err)
 	}
-	memory, err := parserMemory("1k")
+	memory, err := parseMemory("1k")
 	if err != nil || memory != 1024 {
 		t.Fatalf("unexpected memory parse result: %d, %v", memory, err)
 	}
@@ -45,14 +45,14 @@ func TestParserMemoryUnitsAndPercent(t *testing.T) {
 		{"1.5g", 3 * 512 * 1024 * 1024},
 	}
 	for _, tt := range tests {
-		got, err := parserMemory(tt.input)
+		got, err := parseMemory(tt.input)
 		if err != nil || got != tt.want {
-			t.Errorf("parserMemory(%q) = %d, %v; want %d", tt.input, got, err, tt.want)
+			t.Errorf("parseMemory(%q) = %d, %v; want %d", tt.input, got, err, tt.want)
 		}
 	}
-	cpu, err := parserCPUEatCount("50%")
+	cpu, err := parseCPU("50%")
 	if err != nil || cpu != float64(runtime.NumCPU())/2 {
-		t.Fatalf("parserCPUEatCount(50%%) = %v, %v", cpu, err)
+		t.Fatalf("parseCPU(50%%) = %v, %v", cpu, err)
 	}
 }
 

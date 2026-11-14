@@ -2,68 +2,57 @@ package cmd
 
 import (
 	"context"
-	"github.com/charmbracelet/log"
 	"math"
 	"runtime"
 	"sync"
 	"time"
 )
 
-// intervalCpuWorkerCheckContextDone is how many iterations a full-core worker
-// spins between checks for cancellation.
-const intervalCpuWorkerCheckContextDone = 10000
+// cpuDutyPeriod is the busy/idle cycle length of each CPU worker.
+const cpuDutyPeriod = 100 * time.Millisecond
 
-func eatCPU(ctx context.Context, c float64) func() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	log.Info("Starting to eat CPU...")
+// cpuCapacity is how many cores eat can use.
+func cpuCapacity() float64 { return float64(runtime.NumCPU()) }
 
-	wholeCores := int(math.Floor(c))
-	fraction := c - float64(wholeCores)
+// eatCPU burns a fixed number of cores until ctx is done.
+func eatCPU(ctx context.Context, cores float64) func() {
+	return startCPUWorkers(ctx, int(math.Ceil(cores)), func() float64 { return cores })
+}
 
-	var workers sync.WaitGroup
-	for i := 0; i < wholeCores; i++ {
-		workers.Add(1)
+// startCPUWorkers starts n workers that together burn level() cores. level
+// may change at any time; workers pick it up within one cycle.
+func startCPUWorkers(ctx context.Context, n int, level func() float64) func() {
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Add(1)
 		go func() {
-			defer workers.Done()
-			for {
-				for i := 0; i < intervalCpuWorkerCheckContextDone; i++ {
-					_ = math.Sqrt(12345.6789)
-				}
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-			}
+			defer wg.Done()
+			cpuDutyWorker(ctx, func() float64 { return workerDuty(level(), i) })
 		}()
 	}
+	return wg.Wait
+}
 
-	if fraction > 0 {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			interval := 100 * time.Millisecond
-			busyTime := time.Duration(fraction * float64(interval))
-			idleTime := interval - busyTime
+// workerDuty is the busy share of worker index when eat burns level cores:
+// workers below the level spin fully, the next one spins part of the time.
+func workerDuty(level float64, index int) float64 {
+	return math.Max(0, math.Min(1, level-float64(index)))
+}
 
-			for {
-				start := time.Now()
-				for time.Since(start) < busyTime {
-					_ = math.Sqrt(12345.6789)
-					select {
-					case <-ctx.Done():
-						return
-					default:
-					}
-				}
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(idleTime):
-				}
+// cpuDutyWorker spins for duty() of every cpuDutyPeriod and sleeps the rest.
+func cpuDutyWorker(ctx context.Context, duty func() float64) {
+	for {
+		start := time.Now()
+		busy := time.Duration(duty() * float64(cpuDutyPeriod))
+		for time.Since(start) < busy {
+			for range 1000 {
+				_ = math.Sqrt(12345.6789)
 			}
-		}()
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(cpuDutyPeriod - time.Since(start)):
+		}
 	}
-	log.Info("Ending to eat CPU...")
-	return workers.Wait
 }

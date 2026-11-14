@@ -3,10 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/charmbracelet/log"
-	"github.com/shirou/gopsutil/v4/mem"
 	"sync/atomic"
 	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 const (
@@ -88,42 +89,40 @@ func systemMemory() (used, total uint64, err error) {
 	return vm.Total - vm.Available, vm.Total, nil
 }
 
+// ensureAvailable fails when less than size bytes of memory are available.
+func ensureAvailable(size uint64) error {
+	used, total, err := systemMemory()
+	if err != nil {
+		return fmt.Errorf("cannot read memory usage: %w", err)
+	}
+	if available := total - min(used, total); size >= available {
+		return fmt.Errorf("not enough memory: need %s, only %s available", formatBytes(size), formatBytes(available))
+	}
+	return nil
+}
+
+// eatMemory allocates memoryBytes and holds it until ctx is done.
 func eatMemory(ctx context.Context, memoryBytes uint64) (func(), error) {
 	if memoryBytes == 0 {
 		return func() {}, nil
 	}
-	vm, err := mem.VirtualMemory()
-	if err != nil {
-		return nil, fmt.Errorf("read available memory: %w", err)
+	if err := ensureAvailable(memoryBytes); err != nil {
+		return nil, err
 	}
-	if memoryBytes >= effectiveAvailableMemory(vm.Available) {
-		return nil, fmt.Errorf("requested %d bytes, only %d bytes available", memoryBytes, effectiveAvailableMemory(vm.Available))
-	}
-	log.Info("Starting to eat memory...")
-
 	var chunks []memoryChunk
 	for remaining := memoryBytes; remaining > 0; {
-		select {
-		case <-ctx.Done():
-			freeChunks(chunks)
-			return func() {}, ctx.Err()
-		default:
+		size := min(remaining, memoryChunkSize)
+		// Re-check every chunk: other processes may grow while we allocate.
+		err := ctx.Err()
+		if err == nil {
+			err = ensureAvailable(size)
 		}
-		current := uint64(memoryChunkSize)
-		if remaining < current {
-			current = remaining
-		}
-		vm, err = mem.VirtualMemory()
 		if err != nil {
 			freeChunks(chunks)
-			return func() {}, err
+			return nil, err
 		}
-		if current >= effectiveAvailableMemory(vm.Available) {
-			freeChunks(chunks)
-			return func() {}, fmt.Errorf("allocation stopped: only %d bytes available", vm.Available)
-		}
-		chunks = append(chunks, allocateChunk(current))
-		remaining -= current
+		chunks = append(chunks, allocateChunk(size))
+		remaining -= size
 	}
 
 	done := make(chan struct{})
@@ -141,7 +140,5 @@ func eatMemory(ctx context.Context, memoryBytes uint64) (func(), error) {
 			}
 		}
 	}()
-
-	log.Info("Ending to eat memory...")
 	return func() { <-done }, nil
 }

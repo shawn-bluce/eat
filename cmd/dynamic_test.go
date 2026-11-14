@@ -11,7 +11,7 @@ func TestNextCPULevel(t *testing.T) {
 	tests := []struct {
 		name                    string
 		level, target, measured float64
-		numCPU                  int
+		capacity                float64
 		want                    float64
 	}{
 		{"below target adds load", 0, 50, 10, 8, 1.6},
@@ -22,9 +22,9 @@ func TestNextCPULevel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := nextCPULevel(tt.level, tt.target, tt.measured, tt.numCPU)
+			got := nextCPULevel(tt.level, tt.target, tt.measured, tt.capacity)
 			if math.Abs(got-tt.want) > 1e-9 {
-				t.Errorf("nextCPULevel(%v, %v, %v, %d) = %v, want %v", tt.level, tt.target, tt.measured, tt.numCPU, got, tt.want)
+				t.Errorf("nextCPULevel(%v, %v, %v, %v) = %v, want %v", tt.level, tt.target, tt.measured, tt.capacity, got, tt.want)
 			}
 		})
 	}
@@ -33,11 +33,11 @@ func TestNextCPULevel(t *testing.T) {
 func TestNextCPULevelConverges(t *testing.T) {
 	// Other processes use 1.5 of 4 cores; eat should settle where the whole
 	// machine is at 75%, i.e. eat itself uses 1.5 cores.
-	const others, numCPU = 1.5, 4
+	const others, capacity = 1.5, 4.0
 	level := 0.0
 	for range 30 {
-		measured := (others + level) / numCPU * 100
-		level = nextCPULevel(level, 75, measured, numCPU)
+		measured := (others + level) / capacity * 100
+		level = nextCPULevel(level, 75, measured, capacity)
 	}
 	if math.Abs(level-1.5) > 0.01 {
 		t.Fatalf("level = %v, want about 1.5", level)

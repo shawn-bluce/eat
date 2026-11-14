@@ -8,14 +8,8 @@ import (
 )
 
 func main() {
-	rootCmd := cmd.RootCmd
-
-	rootCmd.PersistentFlags().StringP("cpu", "c", "0", "How many cpu would you want eat")
-	rootCmd.PersistentFlags().StringP("memory", "m", "0m", "How many memory would you want eat(GB)")
-	rootCmd.PersistentFlags().BoolP("dynamic", "d", false, "Keep the whole system's CPU/memory usage at -c/-m instead of eating a fixed amount")
-
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+	if err := cmd.RootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
 }
