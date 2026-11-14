@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ["**.md"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. v1.0.0 (default: bump the patch of the latest release)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go vet ./...
+      - run: go test ./...
+
+  # Every push to master publishes a release with notes and binaries.
+  release:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Pick version and write release notes
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          latest=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -n "$INPUT_VERSION" ]; then
+            version=$INPUT_VERSION
+          elif [ -z "$latest" ]; then
+            version=v0.2.0
+          else
+            IFS=. read -r major minor patch <<< "${latest#v}"
+            version="v$major.$minor.$((patch + 1))"
+          fi
+          if ! [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "::error::Invalid or existing version: $version"
+            exit 1
+          fi
+          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          url="https://github.com/$REPO/releases/download/$version"
+          {
+            echo "## Changes"
+            echo
+            git log --no-merges --pretty='- %s (%h)' ${previous:+"$previous..HEAD"}
+            echo
+            echo "## Install"
+            echo
+            echo "Linux / macOS (replace \`linux-amd64\` with \`linux-arm64\`, \`darwin-arm64\` or \`darwin-amd64\`):"
+            echo
+            echo '```shell'
+            echo "curl -fL -o eat $url/eat-linux-amd64 && chmod +x eat"
+            echo "./eat -c 50% -m 1g"
+            echo '```'
+            echo
+            echo "Windows: download \`eat-windows-amd64.exe\` (or \`eat-windows-arm64.exe\`) below."
+            echo
+            echo "Verify with \`sha256sum -c checksums.txt --ignore-missing\`."
+            if [ -n "$previous" ]; then
+              echo
+              echo "**Full Changelog**: https://github.com/$REPO/compare/$previous...$version"
+            fi
+          } > notes.md
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          cat notes.md
+
+      - run: make all VERSION="$VERSION"
+      - run: cd dist && sha256sum -- * > checksums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          body_path: notes.md
+          files: dist/*
