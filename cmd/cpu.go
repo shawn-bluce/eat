@@ -2,17 +2,66 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/shirou/gopsutil/v4/cpu"
 )
 
 // cpuDutyPeriod is the busy/idle cycle length of each CPU worker.
 const cpuDutyPeriod = 100 * time.Millisecond
 
-// cpuCapacity is how many cores eat can use.
-func cpuCapacity() float64 { return float64(runtime.NumCPU()) }
+// cpuCapacity is how many cores eat can use: the CPU limit of its cgroup
+// (container) if there is one, otherwise all cores of the machine.
+func cpuCapacity() float64 {
+	if quota, _, ok := cgroupCPU(float64(runtime.NumCPU())); ok {
+		return quota
+	}
+	return float64(runtime.NumCPU())
+}
+
+// cpuMeter measures CPU usage between calls to percent, of the cgroup when it
+// has a CPU limit and of the whole machine otherwise.
+type cpuMeter struct{ busy, total float64 }
+
+func newCPUMeter() *cpuMeter {
+	m := &cpuMeter{}
+	_, _ = m.percent()
+	return m
+}
+
+// percent returns the CPU usage since the previous call as a percentage of
+// cpuCapacity.
+func (m *cpuMeter) percent() (float64, error) {
+	busy, total, err := cpuTimes()
+	if err != nil {
+		return 0, err
+	}
+	dBusy, dTotal := busy-m.busy, total-m.total
+	m.busy, m.total = busy, total
+	if dTotal <= 0 {
+		return 0, nil
+	}
+	return math.Max(0, math.Min(100, dBusy/dTotal*100)), nil
+}
+
+var cpuTimesEpoch = time.Now()
+
+// cpuTimes returns the busy and the available CPU seconds so far.
+func cpuTimes() (busy, total float64, err error) {
+	if quota, used, ok := cgroupCPU(float64(runtime.NumCPU())); ok {
+		return used, time.Since(cpuTimesEpoch).Seconds() * quota, nil
+	}
+	times, err := cpu.Times(false)
+	if err != nil || len(times) == 0 {
+		return 0, 0, fmt.Errorf("cannot read CPU times: %v", err)
+	}
+	t := times[0]
+	return t.Total() - t.Idle - t.Iowait, t.Total(), nil
+}
 
 // eatCPU burns a fixed number of cores until ctx is done.
 func eatCPU(ctx context.Context, cores float64) func() {

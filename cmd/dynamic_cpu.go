@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/shirou/gopsutil/v4/cpu"
 )
 
 const (
@@ -27,7 +26,8 @@ func nextCPULevel(level, targetPercent, measuredPercent, capacity float64) float
 	return math.Max(0, math.Min(capacity, next))
 }
 
-// dynamicCPU keeps system-wide CPU usage at targetPercent (0-100).
+// dynamicCPU keeps the CPU usage of the system (or of the container eat runs
+// in) at targetPercent (0-100).
 func dynamicCPU(ctx context.Context, targetPercent float64) func() {
 	capacity := cpuCapacity()
 	var level atomic.Uint64 // math.Float64bits of the number of cores to burn
@@ -37,21 +37,21 @@ func dynamicCPU(ctx context.Context, targetPercent float64) func() {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		meter := newCPUMeter()
+		ticker := time.NewTicker(dynamicSampleInterval)
+		defer ticker.Stop()
 		for {
-			percents, err := cpu.PercentWithContext(ctx, dynamicSampleInterval, false)
-			if ctx.Err() != nil {
+			select {
+			case <-ctx.Done():
 				return
+			case <-ticker.C:
 			}
-			if err != nil || len(percents) == 0 {
+			measured, err := meter.percent()
+			if err != nil {
 				log.Warnf("Cannot measure CPU usage: %v", err)
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(dynamicSampleInterval):
-				}
 				continue
 			}
-			level.Store(math.Float64bits(nextCPULevel(loadLevel(), targetPercent, percents[0], capacity)))
+			level.Store(math.Float64bits(nextCPULevel(loadLevel(), targetPercent, measured, capacity)))
 		}
 	}()
 	return func() { waitWorkers(); <-done }

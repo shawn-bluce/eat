@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -21,9 +20,9 @@ func reportStatus(ctx context.Context, interval time.Duration) func() {
 		log.Warnf("Cannot inspect own process, status disabled: %v", err)
 		return func() {}
 	}
-	// Prime the "since last call" CPU counters so the first report covers
-	// the first interval rather than the time since startup.
-	_, _ = cpu.Percent(0, false)
+	// Prime the "since last call" counters so the first report covers the
+	// first interval rather than the time since startup.
+	meter := newCPUMeter()
 	_, _ = self.Percent(0)
 
 	done := make(chan struct{})
@@ -36,17 +35,17 @@ func reportStatus(ctx context.Context, interval time.Duration) func() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				log.Info(statusLine(self))
+				log.Info(statusLine(meter, self))
 			}
 		}
 	}()
 	return func() { <-done }
 }
 
-func statusLine(self *process.Process) string {
+func statusLine(meter *cpuMeter, self *process.Process) string {
 	sysCPU, sysMem, eatCPU, eatMem := "?", "?", "?", "?"
-	if percents, err := cpu.Percent(0, false); err == nil && len(percents) > 0 {
-		sysCPU = fmt.Sprintf("%.1f%%", percents[0])
+	if percent, err := meter.percent(); err == nil {
+		sysCPU = fmt.Sprintf("%.1f%%", percent)
 	}
 	if used, total, err := systemMemory(); err == nil && total > 0 {
 		sysMem = fmt.Sprintf("%.1f%% (%s / %s)", float64(used)/float64(total)*100, formatBytes(used), formatBytes(total))
