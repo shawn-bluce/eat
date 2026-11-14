@@ -1,65 +1,78 @@
-# Intro
-<b>我是一只吃CPU和内存的怪兽🦕</b>
+# eat 🦕
 
-<b>I'm a monster that eats CPU and memory🦕</b>
+[![CI](https://github.com/shawn-bluce/eat/actions/workflows/ci.yml/badge.svg)](https://github.com/shawn-bluce/eat/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/shawn-bluce/eat?sort=semver)](https://github.com/shawn-bluce/eat/releases/latest)
 
-开发者们经常会遇到需要快速占用 CPU 和内存的需求，我也是。所以我开发了一个名为 `eat` 的小工具来快速占用指定数量的 CPU 和内存。
+**我是一只吃 CPU 和内存的怪兽。I'm a monster that eats CPU and memory.**
 
-Developer often need to quickly occupy CPU and memory, so do I. Therefore, I developed a small tool named `eat` to quickly occupy the specified number of CPU and memory.
+开发者经常需要快速占用一定量的 CPU 和内存（压测、验证告警和扩缩容、模拟资源紧张），`eat` 就是做这件事的小工具：一个没有依赖的二进制，支持 Linux、macOS 和 Windows，在容器里会按容器的 CPU 和内存限制计算。
 
-# Usage
+Developers often need to occupy some CPU and memory quickly — load tests, checking alerts and autoscaling, simulating a busy machine. `eat` does just that: a single dependency-free binary for Linux, macOS and Windows that respects container CPU and memory limits.
 
-```shell
-eat -c 4	# eating 4 CPU cores
-eat -c 35%	# eating 35% CPU cores (CPU cores * 35%)
-eat -c 100%	# eating all CPU cores
-eat -m 4g	# eating 4GB memory
-eat -m 20m	# eating 20MB memory
-eat -m 35%	# eating 35% memory (total memory * 35%)
-eat -m 100%	# eating all memory
-eat -c 2.5 -m 1.5g	# eating 2.5 CPU cores and 1.5GB memory
-eat -c 3 -m 200m	# eating 3 CPU cores and 200MB memory
-eat -c 100% -m 100%	# eating all CPU cores and memory
-```
+## Install
 
-## Dynamic mode / 动态模式
+从 [Releases](https://github.com/shawn-bluce/eat/releases/latest) 下载对应平台的二进制，或者：
 
-加上 `-d/--dynamic` 后，`-c`/`-m` 表示整机要维持的使用率，而不是 eat 自己占多少。其他进程用得多，eat 就少占；用得少，eat 就多占；其他进程已经超过目标时 eat 不再占用。
-
-With `-d/--dynamic`, `-c`/`-m` set the usage level of the whole machine instead of a fixed amount for eat. eat adjusts itself every second as other processes come and go.
+Download a binary from [Releases](https://github.com/shawn-bluce/eat/releases/latest), or:
 
 ```shell
-eat -c 70% -m 60% -d	# keep the whole machine at 70% CPU and 60% memory
-eat -c 70% -d		# keep CPU at 70%, leave memory alone
-eat -c 4 -m 8g -d	# absolute values are converted to shares of the machine
+# os: linux | darwin, arch: amd64 | arm64
+curl -fL -o eat https://github.com/shawn-bluce/eat/releases/latest/download/eat-linux-amd64
+chmod +x eat
 ```
 
-> - CPU 每秒采样一次，几秒内收敛到目标附近。
-> - 内存以 32MB 为单位增减，稳定在目标值下方一个单位以内；始终保留至少 2%（不少于 64MB）的空闲内存，避免触发 OOM。
-> - 在 Linux cgroup（容器）里有内存上限时，按 cgroup 的上限和用量计算。
-
-> Tips:
-> - Use `<Ctrl> + C` to stop program and release CPU and memory
-> - While running, eat logs the CPU and memory usage of the whole system and of itself every 5 seconds
-
-# Build
+## Usage
 
 ```shell
-# Linux
-make linux-amd64 linux-arm64
-# macOs
-make darwin-amd64 darwin-arm64
-# Windows
-make windows-amd64 windows-arm64
+eat -c 4                # eat 4 CPU cores
+eat -c 35%              # eat 35% of all CPU cores
+eat -m 4g               # eat 4GB memory (units: b, k, m, g)
+eat -m 35%              # eat 35% of all memory
+eat -c 2.5 -m 1.5g      # eat 2.5 CPU cores and 1.5GB memory
+eat -c 100%             # eat all CPU cores
 ```
 
-# Release
+按 `Ctrl + C` 退出并释放资源。运行期间每 5 秒打印一次整机和 eat 自身的 CPU、内存占用。
 
-推送 `v` 开头的 tag 即触发 GitHub Actions 构建并发布 Release；也可以在 Actions 页面手动运行 Release 并填写要创建的 tag。
+Press `Ctrl + C` to stop and release everything. While running, eat logs the CPU and memory usage of the system and of itself every 5 seconds.
 
-Push a tag starting with `v` to build and publish a GitHub Release, or run the Release workflow manually with the tag to create.
+### Dynamic mode
+
+加上 `-d/--dynamic` 后，`-c`/`-m` 表示**整机**要维持的使用率，而不是 eat 自己占多少：其他进程用得多，eat 就少占；用得少，eat 就多占。
+
+With `-d/--dynamic`, `-c`/`-m` set the usage level of the **whole system** instead of a fixed amount for eat, and eat adjusts itself every second as other processes come and go.
 
 ```shell
-git tag v0.2.0
-git push origin v0.2.0
+eat -c 70% -m 60% -d    # keep the system at 70% CPU and 60% memory
+eat -c 70% -d           # keep CPU at 70%, leave memory alone
+eat -c 4 -m 8g -d       # absolute values are shares of the system too
 ```
+
+- CPU 几秒内收敛到目标附近；其他进程已经超过目标时，eat 不再占用。
+- 内存以 32MB 为单位增减，稳定在目标下方 32MB 以内，并始终保留 2%（至少 64MB）的空闲内存，避免触发 OOM。
+
+### Containers
+
+在有 CPU 或内存限制的容器里（`docker run --cpus 2 --memory 1g`、Kubernetes limits），百分比和动态模式都以容器的限制为准，支持 cgroup v1 和 v2。
+
+Inside a container with CPU or memory limits, percentages and dynamic mode are relative to the container's limits (cgroup v1 and v2).
+
+### Memory locking
+
+在 Linux 和 macOS 上，eat 会尝试锁定内存，防止被系统换出到 swap。普通用户的锁定额度通常很小，锁定失败时 eat 会提示一次并继续运行；需要锁定时用 root 运行或调大 `ulimit -l`。Windows 不锁定。
+
+On Linux and macOS, eat locks its memory so it is not swapped out. If the limit for normal users is too small, eat warns once and keeps running; run it as root or raise `ulimit -l` to lock. Windows does not lock memory.
+
+## Build
+
+```shell
+make            # dist/eat for this system
+make all        # dist/eat-<os>-<arch> for every platform
+make test       # go vet + go test
+```
+
+## Release
+
+每次推送到 `master` 都会在 Linux、macOS、Windows 上跑测试，通过后自动发布新版本：版本号在最新的 `vX.Y.Z` 上加一个补丁号，发布说明列出这次的提交，并附上所有平台的二进制和 `checksums.txt`。只改文档的提交不发布。要发 minor 或 major 版本，在 Actions 里手动运行 CI 并填写版本号（例如 `v1.0.0`）。
+
+Every push to `master` is tested on Linux, macOS and Windows and then released automatically: the patch number of the latest `vX.Y.Z` is bumped, the notes list the new commits, and binaries for every platform plus `checksums.txt` are attached. Documentation-only pushes are not released. For a minor or major version, run the CI workflow manually with the version (e.g. `v1.0.0`).
